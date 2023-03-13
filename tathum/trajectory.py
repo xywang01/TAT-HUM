@@ -96,7 +96,7 @@ class Trajectory:
 
         self.movement_selection_method = movement_selection_method
         self.movement_selection_sign = movement_selection_sign
-        if self.movement_selection_method == 'sign' :
+        if self.movement_selection_method == 'sign':
             if self.movement_selection_sign is None:
                 raise ValueError('movement_selection_method is set to "sign" but movement_selection_sign was not specified!')
             if movement_selection_dir is None:
