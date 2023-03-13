@@ -7,7 +7,7 @@ long_description = (this_directory / "README.md").read_text()
 
 setup(
     name='tathum',
-    version='0.2',
+    version='0.3',
     description='TAT-HUM: Trajectory Analysis Toolkit for Human Movement',
     url='https://github.com/xywang01/TAT-HUM',
     download_url='https://github.com/xywang01/TAT-HUM/archive/refs/tags/0.1.tar.gz',
