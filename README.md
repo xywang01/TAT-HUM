@@ -76,7 +76,8 @@ analysis, and should eliminate trials that are missing data from more than 5%   
 less than 5% missing data, it is possible to recover the trial by interpolating the section of the trial that is 
 missing data.
 
-![missing_data_good](./img/missing_data_good.png) ![missing_data_bad](./img/missing_data_bad.png)
+| ![missing_data_good](./img/missing_data_good.png) | ![missing_data_bad](./img/missing_data_bad.png) |
+|---------------------------------------------------|-------------------------------------------------|
 
 *Figure 1. Two examples of missing data in the raw trajectory (top panels) and the trajectory with missing data filled 
 in using linear interpolation (bottom panels). See text for explanations.*  
@@ -132,7 +133,8 @@ data (Figure 2, left panel, top row), such measurement variability would be ampl
 such as velocity and acceleration (Figure 2, left panels). Therefore, it is essential to smooth the trajectories before 
 computing their derivatives.
 
-![smoothing_good](./img/smoothing_demo_good.png) ![smoothing_bad](./img/smoothing_demo_bad.png)
+| ![smoothing_bad](./img/smoothing_demo_bad.png) | ![smoothing_good](./img/smoothing_demo_good.png) |
+|------------------------------------------------|--------------------------------------------------|
 
 *Figure 2. Demonstration of the effect of slight measurement deviations (left) and trajectory smoothing using low-pass 
 Butterworth filter (right) on the second (i.e., velocity) and third (i.e., acceleration) order derivatives of position.* 
@@ -179,9 +181,9 @@ procedure in an upper-limb aiming experiment that asks participants to aim diffe
 (e.g., a computer monitor) as reference points. Alternatively, one can also extract the start and end positions from 
 the original movement trajectories and use them as reference points.
 
-| a | ![trans1](./img/1_original_setup.png) | b | ![trans2](./img/2_norm_ground_projection.png) |
-|---|---------------------------------------|---|-----------------------------------------------|
-| c | ![trans3](./img/3_alignment.png)      | d | ![trans4](./img/4_final.png)                  |
+| a   | ![trans1](./img/1_original_setup.png) | b   | ![trans2](./img/2_norm_ground_projection.png) |
+|-----|---------------------------------------|-----|-----------------------------------------------|
+| c   | ![trans3](./img/3_alignment.png)      | d   | ![trans4](./img/4_final.png)                  |
 
 *Figure 3. Demonstration of spatial transformation with the movement plane (black rectangle) defined by the four corners 
 (black points), its surface normal (magenta line), and the aiming trajectory (black line), where the red 
@@ -254,7 +256,8 @@ marks movement initiation and termination. Movement initiation is defined as the
 threshold whereas movement termination is defined as the point at which velocity drops below the same threshold, which 
 can be set by the user during function call (Figure 4). 
 
-![bound_good](./img/movement%20bound.png) ![bound_bad](./img/movement%20bound%20bad.png)
+| ![bound_good](./img/movement%20bound.png) | ![bound_bad](./img/movement%20bound%20bad.png) |
+|-------------------------------------------|------------------------------------------------|
 
 *Figure 4. Demonstration of movement boundaries. The displacement and velocity are of a single dimension, plotted on the 
 same time scale. In this example, movement initiation (green dotted line) and termination (red dotted line) are defined 
@@ -351,7 +354,8 @@ start_pos, end_pos = find_start_end_pos(
     	ind_buffer=20)
 ```
 
-![start_all](./img/start_pos_all.png) ![start_zoom](./img/start_pos_zoom.png)
+| ![start_all](./img/start_pos_all.png) | ![start_zoom](./img/start_pos_zoom.png) |
+|---------------------------------------|-----------------------------------------|
 
 *Figure 5. Illustration of the instability of the starting position. Left: the entire movement trajectory where the 
 green dotted line marks the movement initiation. Right: a zoom-in view of the movement trajectory around the movement 
