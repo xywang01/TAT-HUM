@@ -6,7 +6,7 @@ For more details on this toolkit, see the preprint [here](https://psyarxiv.com/4
 Human movement trajectories can reveal useful insights regarding the underlying mechanisms of human behaviors. 
 Extracting information from movement trajectories, however, could be challenging because of their complex and dynamic 
 nature . The current paper presents a Python toolkit developed to help users analyze and extract useful information 
-from the trajectories of discrete rap-id aiming movements  executed by humans. This toolkit utilizes various open-source 
+from the trajectories of discrete rapid aiming movements executed by humans. This toolkit utilizes various open-source 
 Python libraries, such as NumPy and SciPy, and offers a collection of commonly used functions to analyze movement 
 trajectory data. To ensure flexibility and ease of use, this toolkit offers two approaches: an automated approach that 
 processes raw data and generates relevant measures automatically, and a manual approach that allows users to 
