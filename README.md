@@ -181,9 +181,9 @@ procedure in an upper-limb aiming experiment that asks participants to aim diffe
 (e.g., a computer monitor) as reference points. Alternatively, one can also extract the start and end positions from 
 the original movement trajectories and use them as reference points.
 
-| a   | ![trans1](img/1 original.gif)  | b   | ![trans2](img/2 norm ground projection.gif) |
+| a   | ![trans1](img/1_original.gif)  | b   | ![trans2](img/2_norm_ground_projection.gif) |
 |-----|--------------------------------|-----|---------------------------------------------|
-| c   | ![trans3](img/3 alignment.gif) | d   | ![trans4](img/4 final.gif)                  |
+| c   | ![trans3](img/3_alignment.gif) | d   | ![trans4](img/4_final.gif)                  |
 
 *Figure 3. Demonstration of spatial transformation with the movement plane (black rectangle) defined by the four corners 
 (black points), its surface normal (magenta line), and the aiming trajectory (black line), where the red 
