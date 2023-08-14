@@ -43,17 +43,23 @@
 
 <body>
 
-<h1> Mouse Tracking Demo</h1>
+<h1> Spatial Cueing Demo</h1>
 
-<p> Press the space key or click on the "Start Tracking" button to start recording cursor movement (in pixels). To stop
-    recording and download tracked data, press the space key again or click on the "Stop Tracking" button. </p>
+<p>
+This demo is created to collect a single trial of 2D mouse tracking data for the spatial cueing experiment.
+</p>
+
+<p>
+    Click on the bottom square to start the trial. One of the top squares would turn bold after a certain delay, which
+    would be followed by a target square turning green after a random stimulus onset asynchrony (SOA). Move your mouse
+    to click on the target square as soon as the target turns green.
+</p>
+
+<p> 2D trajectory data will be automatically downloaded once the target was clicked. </p>
 
 <p>
   Current mouse position: <b><span id="mouse-pos"></span></b>
 </p>
-
-<!-- <button id="start-tracking">Start Tracking</button>
-<button id="stop-tracking">Stop Tracking</button> -->
 
 <div id="square1" class="square"></div>
 <span class="targetMargin"></span>
