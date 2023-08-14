@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+  .square {
+    width: 50px;
+    height: 50px;
+    border: 2px solid black;
+    margin: 10px;
+    display: inline-block;
+  }
+
+  .squareCued {
+    width: 100px;
+    height: 100px;
+    border: 5px solid black;
+    margin: 10px;
+    display: inline-block;
+  }
+
+  .green {
+    background-color: green;
+  }
+
+  .highlighted {
+      border-width: 5px;
+  }
+
+  .unhighlighted {
+      border-width: 2px;
+  }
+
+  .targetMargin {
+            display: inline-block;
+            margin-left: 180px;
+        }
+  .homeMargin {
+            display: inline-block;
+            margin-left: 125px;
+        }
+</style>
+</head>
+
+<body>
+
+<h1> Mouse Tracking Demo</h1>
+
+<p> Press the space key or click on the "Start Tracking" button to start recording cursor movement (in pixels). To stop
+    recording and download tracked data, press the space key again or click on the "Stop Tracking" button. </p>
+
+<p>
+  Current mouse position: <b><span id="mouse-pos"></span></b>
+</p>
+
+<!-- <button id="start-tracking">Start Tracking</button>
+<button id="stop-tracking">Stop Tracking</button> -->
+
+<div id="square1" class="square"></div>
+<span class="targetMargin"></span>
+<div id="square2" class="square"></div>
+
+<br><br><br><br><br><br><br><br><br>
+
+<span class="homeMargin"></span>
+<div id="squareHome" class="square"></div>
+
+<script>
+    function getRandomDelay() {
+        return Math.floor(Math.random() * (500 - 100 + 1)) + 100;
+    }
+
+    function getRandomSOA(){
+        const values = [100, 350, 850, 1100];
+        const randomIndex = Math.floor(Math.random() * values.length);
+        return values[randomIndex];
+    }
+
+    let trackingData = [];
+    let tracking = false;
+    let startTime = Date.now();
+    let lastMousePos;
+    const samplingFrequency = 250;
+    const cueingTime = 1000;
+    const mousePosText = document.getElementById('mouse-pos');
+    const square1 = document.getElementById('square1');
+    const square2 = document.getElementById('square2');
+    const squareHome = document.getElementById('squareHome')
+
+    // update mouse position
+    window.addEventListener('mousemove', (event) => {
+        lastMousePos = {x: event.clientX, y: event.clientY};
+        mousePosText.textContent = `(${lastMousePos.x}, ${lastMousePos.y})`;
+    });
+
+    // function to store mouse position
+    const captureMousePosition = () => {
+        if (tracking) {
+            const currentTime = (Date.now() - startTime) / 1000;
+            trackingData.push({ time: currentTime, lastMousePos });
+        }
+    };
+
+    function getRandomSquare() {
+        const randomIndex = Math.floor(Math.random() * 2);
+        return randomIndex === 0 ? square1 : square2;
+    }
+
+    // start sampling mouse position as soon as the home square is clicked
+    let samplingInterval;
+    squareHome.addEventListener('click', () => {
+        tracking = true;
+        startTime = Date.now();
+        samplingInterval = setInterval(captureMousePosition, 1 / samplingFrequency * 1000);
+    });
+
+    // event sequence for a single trial
+    squareHome.addEventListener('click', () => {
+        console.log("Home is clicked")
+
+        // change current square's border size after a random delay
+        let cueingSquare = getRandomSquare();
+        let cueingOnsetTimeout;
+        if (cueingOnsetTimeout) {
+            clearTimeout(cueingOnsetTimeout);
+        }
+        cueingOnsetTimeout = setTimeout(() => {
+            cueingSquare.classList.add('highlighted');
+              }, getRandomDelay());
+
+        // unhighlight the cueing target after a specific cueing time
+        let cueingTerminationTimeout;
+        if (cueingTerminationTimeout) {
+            clearTimeout(cueingTerminationTimeout);
+        }
+        cueingTerminationTimeout = setTimeout(() => {
+            cueingSquare.classList.add('unhighlighted');
+
+            // randomly select the target square
+            let targetSquare = getRandomSquare();
+
+            targetSquare.addEventListener('click', () => {
+                setTimeout(() => {
+                    tracking = false;
+                    downloadCSV(trackingData);
+                }, 500);
+            });
+
+            let targetTimeout;
+            if (targetTimeout) {
+                clearTimeout(targetTimeout);
+            }
+            targetTimeout = setTimeout(() => {
+                targetSquare.classList.add('green');
+            }, getRandomSOA());
+
+        }, cueingTime);
+    });
+
+    function downloadCSV(data) {
+        const csvContent = "data:text/csv;charset=utf-8," + data.map(item => `${item.time},${item.lastMousePos.x},${item.lastMousePos.y}`).join("\n");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "mouse_tracking.csv");
+        document.body.appendChild(link);
+        link.click();
+    }
+</script>
+
+
+
+</body>
+</html>
