@@ -1,43 +1,9 @@
 from abc import ABC, abstractmethod
-from functools import reduce
-from collections import OrderedDict
-from enum import Enum
 
 # from .coord import Coord
 # from .functions import *
 from tathum.coord import Coord
 from tathum.functions import *
-
-# DisplacementProcess = Enum('DisplacementProcess',
-#                            ['missing_data', 'spatial_transform', 'butter_smooth', 'cent_diff'])
-# VelocityProcess = Enum('VelocityProcess',
-#                        ['butter_smooth', 'cent_diff'])
-# AccelerationProcess = Enum('AccelerationProcess',
-#                            ['butter_smooth', 'cent_diff'])
-
-class TATHUMPreprocesses(Enum):
-    FILL_MISSING = 1
-    SPATIAL_TRANSFORM = 2
-    LOW_BUTTER = 3
-    CENT_DIFF = 4
-
-
-def composite_function(*functions):
-    def compose(f, g):
-        return lambda x: f(g(x))
-
-    return reduce(compose, functions, lambda x: x)
-
-
-def get_function(process):
-    if process == TATHUMPreprocesses.FILL_MISSING:
-        return fill_missing_data
-    elif process == TATHUMPreprocesses.SPATIAL_TRANSFORM:
-        return composite_function(compute_transformation, rotate_coord)
-    elif process == TATHUMPreprocesses.LOW_BUTTER:
-        return low_butter
-    elif process == TATHUMPreprocesses.CENT_DIFF:
-        return cent_diff
 
 
 class TrajectoryBase(ABC):
@@ -58,14 +24,6 @@ class TrajectoryBase(ABC):
                  vel_threshold: float = 50.,
                  movement_selection_method: str = 'length', movement_selection_sign: str = 'positive',
                  spline_order: int = 3, n_fit: int = 100,
-
-
-
-                 displacement_process: tuple[TATHUMPreprocesses] = (TATHUMPreprocesses.FILL_MISSING,
-                                                                    TATHUMPreprocesses.SPATIAL_TRANSFORM,
-                                                                    TATHUMPreprocesses.LOW_BUTTER, ),
-                 velocity_process: tuple[TATHUMPreprocesses] = (TATHUMPreprocesses.CENT_DIFF, ),
-                 acceleration_process: tuple[TATHUMPreprocesses] = (TATHUMPreprocesses.CENT_DIFF, ),
                  ):
         self.vel_threshold = vel_threshold
         self.unit = unit
@@ -77,10 +35,6 @@ class TrajectoryBase(ABC):
         self.n_frames_fit = n_fit
         self.movement_selection_method = movement_selection_method
         self.movement_selection_sign = movement_selection_sign
-
-        self.displacement_process = composite_function(*[get_function(p) for p in displacement_process])
-        self.velocity_process = composite_function(*[get_function(p) for p in velocity_process])
-        self.acceleration_process = composite_function(*[get_function(p) for p in acceleration_process])
 
     @property
     @abstractmethod
@@ -95,6 +49,18 @@ class TrajectoryBase(ABC):
     def n_frames(self, value):
         pass
 
+    @abstractmethod
+    def preprocess_displacement(self):
+        pass
+
+    @abstractmethod
+    def preprocess_velocity(self):
+        pass
+
+    @abstractmethod
+    def preprocess_acceleration(self):
+        pass
+
     @property
     @abstractmethod
     def movement_velocity(self):
@@ -107,6 +73,11 @@ class TrajectoryBase(ABC):
         """
         pass
 
+    @movement_velocity.setter
+    @abstractmethod
+    def movement_velocity(self, value):
+        pass
+
     @property
     @abstractmethod
     def movement_displacement(self):
@@ -116,6 +87,11 @@ class TrajectoryBase(ABC):
         Derives the displacement, either along a single axis or the resultant displacement, that will be used to
         automatically distinguish valid from invalid movements. This need to be implemented in the concrete class.
         """
+        pass
+
+    @movement_displacement.setter
+    @abstractmethod
+    def movement_displacement(self, value):
         pass
 
     @abstractmethod
@@ -138,13 +114,16 @@ class TrajectoryBase(ABC):
 
     def validate_size(self, n_dim: int = 3):
         """ Validate input coordinate size. """
-        n_x, n_y, n_z = len(self.x), len(self.y), len(self.z)
-        if (n_dim == 3) & (not (n_x == n_y == n_z)):
-            raise ValueError("The input x, y, and z have to be of the same size! \n"
-                             f"Instead, len(x)={len(self.x)}, len(y)={len(self.y)}, len(z)={len(self.z)}")
-        elif (n_dim == 2) & (not (n_x == n_y)):
-            raise ValueError("The input x and y have to be of the same size! \n"
-                             f"Instead, len(x)={len(self.x)}, len(y)={len(self.y)}")
+        n_x, n_y = len(self.x), len(self.y)
+        if n_dim == 3:
+            n_z = len(self.z)
+            if not (n_x == n_y == n_z):
+                raise ValueError("The input x, y, and z have to be of the same size! \n"
+                                 f"Instead, len(x)={len(self.x)}, len(y)={len(self.y)}, len(z)={len(self.z)}")
+        elif n_dim == 2:
+            if not (n_x == n_y):
+                raise ValueError("The input x and y have to be of the same size! \n"
+                                 f"Instead, len(x)={len(self.x)}, len(y)={len(self.y)}")
         return n_x
 
     def compute_movement_boundaries(self):

@@ -84,6 +84,7 @@ class Trajectory:
         self.fc = fc
         self.missing_data_filler = missing_data_filler
         self.spline_order = spline_order
+        self.n_frames_fit = n_fit
 
         self.x_original, self.y_original, self.z_original = x.copy(), y.copy(), z.copy()  # keep a separate copy of the original data
         self.x, self.y, self.z = x, y, z
@@ -137,9 +138,6 @@ class Trajectory:
         self.x_smooth = self.low_butter_scipy(self.x)
         self.y_smooth = self.low_butter_scipy(self.y)
         self.z_smooth = self.low_butter_scipy(self.z)
-
-        # # parameterize and fit the trajectory
-        self.n_frames_fit = n_fit
 
         # 3d distance to the origin
         self.pos_3d = np.sqrt(self.x_smooth ** 2 + self.y_smooth ** 2 + self.z_smooth ** 2)

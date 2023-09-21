@@ -17,6 +17,9 @@ from scipy.spatial.transform import Rotation
 from skspatial.objects import Plane, Points, Vector
 from pytransform3d.rotations import matrix_from_axis_angle
 
+from enum import Enum
+from functools import reduce
+
 
 def check_input_coord(x, y, z):
     """
@@ -173,8 +176,11 @@ def find_optimal_cutoff_frequency(signal: np.ndarray,
 
     # compute the normalized residual autocorrelation for each cutoff frequency
     for fc in fc_test:
+        # compute the residual
         resid = signal - low_butter(signal, fs, fc)
+        # compute the normalized residual autocorrelation
         resid_autocorr = autocorr(resid)
+
         norm_resid.append(resid_autocorr)
     norm_resid = np.array(norm_resid)
 
@@ -402,3 +408,27 @@ def b_spline_fit_1d(time_vec, coord, n_fit, smooth=0., return_spline=False):
         return time_fit, spline(time_fit), spline
     else:
         return time_fit, spline(time_fit)
+
+
+class Preprocesses(Enum):
+    FILL_MISSING = 1
+    SPATIAL_TRANSFORM = 2
+    LOW_BUTTER = 3
+    CENT_DIFF = 4
+
+
+def composite_function(*functions):
+    def compose(f, g):
+        return lambda x: f(g(x))
+
+    return reduce(compose, functions, lambda x: x)
+
+def get_function(process):
+    if process == Preprocesses.FILL_MISSING:
+        return fill_missing_data
+    elif process == Preprocesses.SPATIAL_TRANSFORM:
+        return composite_function(compute_transformation, rotate_coord)
+    elif process == Preprocesses.LOW_BUTTER:
+        return low_butter
+    elif process == Preprocesses.CENT_DIFF:
+        return cent_diff
