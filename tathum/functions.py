@@ -38,6 +38,30 @@ def consecutive(data, step_size=1):
     return np.split(data, np.where(np.diff(data) != step_size)[0] + 1)
 
 
+def cent_diff(time: np.ndarray, signal: np.ndarray):
+    """
+    Central difference method to find derivatives.
+
+    :param time: the time vector
+    :param signal: the signal to be smoothed
+    """
+    n_frames = len(time)
+
+    if len(signal) != n_frames:
+        raise ValueError('The input signal has to be of the same length as its corresponding time vector!')
+
+    der = np.zeros(n_frames, dtype=float)
+
+    der[0] = (signal[1] - signal[0]) / (time[1] - time[0])
+    der[-1] = (signal[-1] - signal[-2]) / (time[-1] - time[-2])
+
+    for i_frame in np.arange(1, n_frames - 1):
+        der[i_frame] = (signal[i_frame + 1] - signal[i_frame - 1]) / (
+                time[i_frame + 1] - time[i_frame - 1])
+
+    return der
+
+
 def fill_missing_data(x: np.ndarray,
                       y: np.ndarray,
                       z: np.ndarray,
@@ -110,6 +134,52 @@ def low_butter(signal, fs, fc, order=2):
     Wn = fc / (fs / 2)
     poly = butter(order, Wn, btype='lowpass', output='ba')  # returns numerator [0] and denominator [1] polynomials
     return filtfilt(poly[0], poly[1], signal.copy())
+
+
+def find_optimal_cutoff_frequency(signal: np.ndarray,
+                                  fs: int,
+                                  fc_test: np.ndarray = np.arange(2, 14),
+                                  ):
+    """
+    Identify the optimal cutoff frequency based on the normalized residual autocorrelation (see Cappello, La
+    Palombara, & Leardini, 1996)
+
+    :param signal: the signal to be filtered
+    :param fs: sampling frequency
+    :param fc_test: the range of cutoff frequencies to be tested
+    Default range is obtained from Schreven, Beek, & Smeets (2015). However, according to Barlett (2007), cutoff
+    frequencies between 4 and 8 Hz are often used in filtering movement data. Decided to use a wider range.
+    :return: the optimal cutoff frequency
+    """
+
+    def autocorr(_signal):
+        _signal_mean = np.mean(_signal)
+
+        # Compute the autocorrelation using NumPy's correlate function
+        _corr = np.correlate(_signal - _signal_mean, _signal - _signal_mean, mode='full')
+
+        # Normalize the autocorrelation
+        _corr /= (np.std(_signal) ** 2) * len(_signal)
+
+        # based on Cappello, La Palombara, & Leardini (1996), only use up to 10 lags
+        _corr = _corr[:10]
+
+        # get the summed squares of the autocorrelation
+        _corr = np.sum(_corr ** 2)
+
+        return _corr
+
+    norm_resid = []
+
+    # compute the normalized residual autocorrelation for each cutoff frequency
+    for fc in fc_test:
+        resid = signal - low_butter(signal, fs, fc)
+        resid_autocorr = autocorr(resid)
+        norm_resid.append(resid_autocorr)
+    norm_resid = np.array(norm_resid)
+
+    # return the cutoff frequency with the smallest normalized residual autocorrelation
+    return fc_test[np.argmin(norm_resid)]
 
 
 def compute_transformation(surface_points_x: np.ndarray,
@@ -308,30 +378,6 @@ def find_start_end_pos(x: np.ndarray, y: np.ndarray, z: np.ndarray,
     mean_end = np.mean(np.array([end_x, end_y, end_z]), axis=1)
 
     return mean_start, mean_end
-
-
-def cent_diff(time: np.ndarray, signal: np.ndarray):
-    """
-    Central difference method to find derivatives.
-
-    :param time: the time vector
-    :param signal: the signal to be smoothed
-    """
-    n_frames = len(time)
-
-    if len(signal) != n_frames:
-        raise ValueError('The input signal has to be of the same length as its corresponding time vector!')
-
-    der = np.zeros(n_frames, dtype=float)
-
-    der[0] = (signal[1] - signal[0]) / (time[1] - time[0])
-    der[-1] = (signal[-1] - signal[-2]) / (time[-1] - time[-2])
-
-    for i_frame in np.arange(1, n_frames - 1):
-        der[i_frame] = (signal[i_frame + 1] - signal[i_frame - 1]) / (
-                time[i_frame + 1] - time[i_frame - 1])
-
-    return der
 
 
 def b_spline_fit_1d(time_vec, coord, n_fit, smooth=0., return_spline=False):
