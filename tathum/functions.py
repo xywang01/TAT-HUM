@@ -188,13 +188,29 @@ def find_optimal_cutoff_frequency(signal: np.ndarray,
     return fc_test[np.argmin(norm_resid)]
 
 
-def compute_transformation(surface_points_x: np.ndarray,
-                           surface_points_y: np.ndarray,
-                           surface_points_z: np.ndarray,
-                           horizontal_norm_name: str = 'y',
-                           primary_ax_name: str = 'z',
-                           secondary_ax_name: str = 'x',
-                           full_output: bool = False) -> (Rotation, np.ndarray, dict):
+def compute_transformation_2d(start_pos: np.ndarray,
+                              end_pos: np.ndarray,
+                              to_dir: np.ndarray = np.array([0, 1]),):
+    # normalized vector between the start and end positions
+    movement_ax = end_pos - start_pos
+    movement_ax_norm = movement_ax / np.linalg.norm(movement_ax)
+
+    # get the angle between the desired direction and the movement axis
+    angle = np.arccos(np.matmul(movement_ax_norm, to_dir))
+
+    # get the rotational matrix based on the angle
+    return np.array([
+        [np.cos(angle), -np.sin(angle)],
+        [np.sin(angle), np.cos(angle)]])
+
+
+def compute_transformation_3d(surface_points_x: np.ndarray,
+                              surface_points_y: np.ndarray,
+                              surface_points_z: np.ndarray,
+                              horizontal_norm_name: str = 'y',
+                              primary_ax_name: str = 'z',
+                              secondary_ax_name: str = 'x',
+                              full_output: bool = False) -> (Rotation, np.ndarray, dict):
     """
     :param surface_points_x: a vector specifying the x coordinates of points sampled from a surface
     :param surface_points_y: a vector specifying the y coordinates of points sampled from a surface
@@ -427,7 +443,7 @@ def get_function(process):
     if process == Preprocesses.FILL_MISSING:
         return fill_missing_data
     elif process == Preprocesses.SPATIAL_TRANSFORM:
-        return composite_function(compute_transformation, rotate_coord)
+        return composite_function(compute_transformation_3d, rotate_coord)
     elif process == Preprocesses.LOW_BUTTER:
         return low_butter
     elif process == Preprocesses.CENT_DIFF:

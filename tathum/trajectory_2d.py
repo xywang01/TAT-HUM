@@ -16,16 +16,17 @@ class Trajectory2D(TrajectoryBase):
     def __init__(self,
                  x: np.ndarray,
                  y: np.ndarray,
+
+                 # displacement_preprocess: tuple[Preprocesses],
+                 # velocity_preprocess: tuple[Preprocesses],
+                 # acceleration_preprocess: tuple[Preprocesses],
+
+                 transform_end_point: tuple[np.ndarray, np.ndarray] = None,
+                 transform_to: np.ndarray = None,
+
                  time: typing.Optional[np.ndarray] = None,
 
                  primary_dir: str = 'y',  # the primary direction of the movement
-
-
-                 displacement_process: tuple[Preprocesses] = (Preprocesses.FILL_MISSING,
-                                                              Preprocesses.SPATIAL_TRANSFORM,
-                                                              Preprocesses.LOW_BUTTER,),
-                 velocity_process: tuple[Preprocesses] = (Preprocesses.CENT_DIFF,),
-                 acceleration_process: tuple[Preprocesses] = (Preprocesses.CENT_DIFF,),
 
                  unit: str = 'mm',
                  missing_data_filler: float = 0.,
@@ -39,7 +40,13 @@ class Trajectory2D(TrajectoryBase):
         self.x, self.y = x, y
         self.n_frames = self.validate_size(n_dim=self.N_DIM)
 
-        self.displacement_process = [get_function(p) for p in displacement_process]
+        # self.displacement_process = [get_function(p) for p in displacement_preprocess]
+
+        self.transform_end_point = transform_end_point
+        if self.transform_end_point is not None:
+            self.transform_to = transform_to if transform_to is not None else np.array([0, 1])
+            start_pos, end_pos = self.transform_end_point[0], self.transform_end_point[1]
+            self.transform_mat, self.transform_origin = self.compute_transform(start_pos, end_pos, self.transform_to)
 
         self.primary_dir = primary_dir
 
@@ -64,6 +71,43 @@ class Trajectory2D(TrajectoryBase):
             vel_threshold=vel_threshold,
             movement_selection_method=movement_selection_method, movement_selection_sign=movement_selection_sign,
             spline_order=spline_order, n_fit=n_fit,)
+
+    def transform_data(self, x, y):
+        coord = np.concatenate([np.expand_dims(x, axis=0),
+                                np.expand_dims(y, axis=0)], axis=0)
+        coord_rot = np.matmul(self.transform_mat, coord - self.transform_origin) + self.transform_origin
+        return coord_rot[0], coord_rot[1]
+
+    @staticmethod
+    def compute_transform(start_pos, end_pos, transform_to):
+        """
+        A wrapper for the compute_transformation_2d() from tathum.functions.
+        """
+        return compute_transformation_2d(start_pos, end_pos, transform_to), np.expand_dims(start_pos, 1)  # use the start position as the origin
+
+    @property
+    def transform_end_point(self):
+        return self._transform_end_point
+
+    @transform_end_point.setter
+    def transform_end_point(self, value):
+        if value is None:
+            self._transform_end_point = None
+        else:
+            if type(value) is not tuple:
+                raise ValueError('The transformation end point has to be a tuple of two 2D Numpy arrays! \n'
+                                 'The supplied value is not a tuple! ')
+            elif len(value) != 2:
+                raise ValueError('The transformation end point has to be a tuple of two 2D Numpy arrays! \n'
+                                 f'The supplied tuple has {len(value)} elements instead of 2!')
+            elif np.any([not type(v) == np.ndarray for v in value]):
+                raise ValueError('The transformation end point has to be a tuple of two 2D Numpy arrays! \n'
+                                 f'The supplied tuple contains elements that are not Numpy arrays!')
+            elif np.any([not v.shape == (2, ) for v in value]):
+                raise ValueError('The transformation end point has to be a tuple of two 2D Numpy arrays! \n'
+                                 f'The supplied tuple contains elements are of size {[v.shape for v in value]}!')
+
+            self._transform_end_point = value
 
     @property
     def n_frames(self):
@@ -102,12 +146,49 @@ class Trajectory2D(TrajectoryBase):
         pass
 
 
+import pandas as pd
+import matplotlib.pyplot as plt
 
+raw_data = pd.read_csv('./demo/demo_data/demo_data_2d.csv')
+transform_data = pd.read_csv('./demo/demo_data/transform_data_2d.csv')
 
+par_id_all = raw_data['par_id'].unique()
+vib_all = raw_data['vib'].unique()
+modality_all = raw_data['modality'].unique()
+vision_all = raw_data['vision'].unique()
 
+for par_id in par_id_all:
+    for modality in modality_all:
+        temp_transform = transform_data[
+            (transform_data['par_id'] == par_id) &
+            (transform_data['modality'] == modality)]
+        transform_end_point = temp_transform[['x', 'y']].to_numpy()
+        transform_end_point = (transform_end_point[0], transform_end_point[1])  # reformat the data for the appropriate input type
 
-raw_data = np.genfromtxt('./demo/demo_data/demo_data_2d.csv', delimiter=',')
+        for vib in vib_all:
+            for vision in vision_all:
+                df_idx = np.where((raw_data['par_id'] == par_id) &
+                                  (raw_data['vib'] == vib) &
+                                  (raw_data['modality'] == modality) &
+                                  (raw_data['vision'] == vision))[0]
+                temp = raw_data.iloc[df_idx]
 
-traj_test = Trajectory2D(x=raw_data[:, 0], y=raw_data[:, 1], time=raw_data[:, 2])
+                traj = Trajectory2D(
+                    x=temp['x'].values,
+                    y=temp['y'].values,
+                    time=temp['traj_ind'].values,
+
+                    transform_end_point=transform_end_point,
+                    transform_to=np.array([0, 1]),
+                )
+
+                plt.figure()
+                plt.plot(traj.x, traj.y)
+                plt.plot(traj.transform_origin[0], traj.transform_origin[1], marker='o', color='black')
+                x_rot, y_rot = traj.transform_data(traj.x, traj.y)
+                plt.plot(x_rot, y_rot)
+                plt.axis('equal')
+                raise ValueError
+
 
 
