@@ -29,7 +29,7 @@ class Trajectory2D(TrajectoryBase):
                  primary_dir: str = 'y',  # the primary direction of the movement
 
                  unit: str = 'mm',
-                 missing_data_filler: float = 0.,
+                 missing_data_value: float = 0.,
                  fs: typing.Optional[int] = None, fc: typing.Optional[int] = None,
                  vel_threshold: float = 50.,
                  movement_selection_method: str = 'length', movement_selection_sign: str = 'positive',
@@ -66,7 +66,7 @@ class Trajectory2D(TrajectoryBase):
 
         super().__init__(
             unit=unit,
-            missing_data_filler=missing_data_filler,
+            missing_data_value=missing_data_value,
             fs=fs, fc=fc,
             vel_threshold=vel_threshold,
             movement_selection_method=movement_selection_method, movement_selection_sign=movement_selection_sign,
@@ -75,8 +75,19 @@ class Trajectory2D(TrajectoryBase):
     def transform_data(self, x, y):
         coord = np.concatenate([np.expand_dims(x, axis=0),
                                 np.expand_dims(y, axis=0)], axis=0)
-        coord_rot = np.matmul(self.transform_mat, coord - self.transform_origin) + self.transform_origin
+        coord_rot = np.matmul(self.transform_mat, coord - self.transform_origin)  # + self.transform_origin - leaving this out so that the trajectory is centered at the origin
         return coord_rot[0], coord_rot[1]
+
+    def missing_data(self):
+        """
+        A wrapper function for the fill_missing_data() from tathum.functions.
+        """
+
+        self.x, self.y, self.time, missing_info = fill_missing_data(
+            x=self.x, y=self.y, time=self.time, missing_data_value=self.missing_data_value,
+        )
+        print(missing_info)
+        return missing_info['contain_missing'], missing_info['n_missing'], missing_info['missing_ind']
 
     @staticmethod
     def compute_transform(start_pos, end_pos, transform_to):
@@ -173,9 +184,15 @@ for par_id in par_id_all:
                                   (raw_data['vision'] == vision))[0]
                 temp = raw_data.iloc[df_idx]
 
+                temp_x = temp['x'].values
+                temp_y = temp['y'].values
+
+                temp_x[[2, 3, 4, 6, 7]] = 0.
+                temp_y[[2, 3, 4, 6, 7]] = 0.
+
                 traj = Trajectory2D(
-                    x=temp['x'].values,
-                    y=temp['y'].values,
+                    x=temp_x,
+                    y=temp_y,
                     time=temp['traj_ind'].values,
 
                     transform_end_point=transform_end_point,
@@ -183,10 +200,15 @@ for par_id in par_id_all:
                 )
 
                 plt.figure()
+                plt.scatter(traj.x, traj.y)
+                traj.missing_data()
                 plt.plot(traj.x, traj.y)
-                plt.plot(traj.transform_origin[0], traj.transform_origin[1], marker='o', color='black')
-                x_rot, y_rot = traj.transform_data(traj.x, traj.y)
-                plt.plot(x_rot, y_rot)
+
+
+
+                # plt.plot(traj.transform_origin[0], traj.transform_origin[1], marker='o', color='black')
+                # x_rot, y_rot = traj.transform_data(traj.x, traj.y)
+                # plt.plot(x_rot, y_rot)
                 plt.axis('equal')
                 raise ValueError
 

@@ -8,7 +8,7 @@ Wang, X.M., & Welsh, T.N. (2023). TAT-HUM: Trajectory Analysis Toolkit for Human
 
 """
 
-from typing import Union
+from typing import Union, Optional
 import vg
 import numpy as np
 from scipy import interpolate
@@ -19,6 +19,19 @@ from pytransform3d.rotations import matrix_from_axis_angle
 
 from enum import Enum
 from functools import reduce
+
+def check_input_coord_2d(x, y):
+    """
+    a helper function to check the dimensions of the input x and y coordinates
+    """
+    if not x.shape == y.shape:
+        raise ValueError('input x and y have to be the same shape!')
+
+    if len(x.shape) > 1:
+        x = x.squeeze()
+        y = y.squeeze()
+
+    return x, y
 
 
 def check_input_coord(x, y, z):
@@ -67,8 +80,8 @@ def cent_diff(time: np.ndarray, signal: np.ndarray):
 
 def fill_missing_data(x: np.ndarray,
                       y: np.ndarray,
-                      z: np.ndarray,
                       time: np.ndarray,
+                      z: Optional[np.ndarray] = None,
                       missing_data_value=0.):
     """
     identify and fill missing data using Scipy's interp1d function
@@ -80,7 +93,11 @@ def fill_missing_data(x: np.ndarray,
     :param missing_data_value: the default value for missing data points
     :return: x, y, z, time, missing_info = {contain_missing, n_missing, missing_ind}
     """
-    x, y, z = check_input_coord(x, y, z)
+
+    if z is None:
+        x, y = check_input_coord_2d(x, y)
+    else:
+        x, y, z = check_input_coord(x, y, z)
 
     missing_ind = np.where(x == missing_data_value)[0]
     not_missing_ind = np.where(x != missing_data_value)[0]
@@ -96,15 +113,16 @@ def fill_missing_data(x: np.ndarray,
                                         fill_value=(np.NaN, np.NaN))
         y = f_interp(time)
 
-        f_interp = interpolate.interp1d(time[not_missing_ind], z[not_missing_ind], bounds_error=False,
-                                        fill_value=(np.NaN, np.NaN))
-        z = f_interp(time)
-
         ind_delete = np.where(np.isnan(x))[0]
         x = np.delete(x, ind_delete)
         y = np.delete(y, ind_delete)
-        z = np.delete(z, ind_delete)
         time = np.delete(time, ind_delete)
+
+        if z is not None:
+            f_interp = interpolate.interp1d(time[not_missing_ind], z[not_missing_ind], bounds_error=False,
+                                            fill_value=(np.NaN, np.NaN))
+            z = f_interp(time)
+            z = np.delete(z, ind_delete)
 
         missing_info = {
             'contain_missing': True,
@@ -112,7 +130,10 @@ def fill_missing_data(x: np.ndarray,
             'missing_ind': missing_ind
         }
 
-        return x, y, z, time, missing_info
+        if z is None:
+            return x, y, time, missing_info
+        else:
+            return x, y, z, time, missing_info
     else:
         missing_info = {
             'contain_missing': False,
@@ -120,7 +141,10 @@ def fill_missing_data(x: np.ndarray,
             'missing_ind': []
         }
 
-        return x, y, z, time, missing_info
+        if z is None:
+            return x, y, time, missing_info
+        else:
+            return x, y, z, time, missing_info
 
 
 def low_butter(signal, fs, fc, order=2):
