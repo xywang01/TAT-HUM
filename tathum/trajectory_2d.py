@@ -17,9 +17,9 @@ class Trajectory2D(TrajectoryBase):
                  x: np.ndarray,
                  y: np.ndarray,
 
-                 # displacement_preprocess: tuple[Preprocesses],
-                 # velocity_preprocess: tuple[Preprocesses],
-                 # acceleration_preprocess: tuple[Preprocesses],
+                 displacement_preprocess: tuple[Preprocesses] = (Preprocesses.LOW_BUTTER, ),
+                 velocity_preprocess: tuple[Preprocesses] = (Preprocesses.CENT_DIFF, ),
+                 acceleration_preprocess: tuple[Preprocesses] = (Preprocesses.CENT_DIFF, ),
 
                  transform_end_point: tuple[np.ndarray, np.ndarray] = None,
                  transform_to: np.ndarray = None,
@@ -38,29 +38,20 @@ class Trajectory2D(TrajectoryBase):
 
         self.x_original, self.y_original = x.copy(), y.copy()  # store a copy of the original data
         self.x, self.y = x, y
+        self.x_vel, self.y_vel = None, None
+        self.x_acc, self.y_acc = None, None
         self.n_frames = self.validate_size(n_dim=self.N_DIM)
-
-        # self.displacement_process = [get_function(p) for p in displacement_preprocess]
-
-        self.transform_end_point = transform_end_point
-        if self.transform_end_point is not None:
-            self.transform_to = transform_to if transform_to is not None else np.array([0, 1])
-            start_pos, end_pos = self.transform_end_point[0], self.transform_end_point[1]
-            self.transform_mat, self.transform_origin = self.compute_transform(start_pos, end_pos, self.transform_to)
-
         self.primary_dir = primary_dir
 
         if (time is None) & (fs is None):
             raise ValueError('You have to either specify the time stamps or the sampling frequency!')
-
         if time is None:
-            self.fs = fs
-            self.time = np.linspace(0, self.n_frames * 1 / self.fs, num=self.n_frames, endpoint=False)
+            self.time = np.linspace(0, self.n_frames * 1 / fs, num=self.n_frames, endpoint=False)
             self.time_original = self.time.copy()
         else:
             self.time_original = time.copy()
             self.time = time
-            self.fs = 1 / np.mean(np.diff(self.time))
+            fs = 1 / np.mean(np.diff(self.time))
             if len(self.time) != self.n_frames:
                 raise ValueError('The size of the input time stamps is not the same as the size of the coordinates!')
 
@@ -70,7 +61,62 @@ class Trajectory2D(TrajectoryBase):
             fs=fs, fc=fc,
             vel_threshold=vel_threshold,
             movement_selection_method=movement_selection_method, movement_selection_sign=movement_selection_sign,
-            spline_order=spline_order, n_fit=n_fit,)
+            spline_order=spline_order, n_fit=n_fit, )
+
+        # fill in missing data before performing spatial transformation (otherwise the missing data value would be
+        # transformed as well)
+        self.contain_missing, self.n_missing, self.ind_missing = self.missing_data()
+
+        # if the cutoff frequency is not specified, then it will be computed automatically
+        if self.fc is None:
+            self.fc = find_optimal_cutoff_frequency(self.x, self.fs)
+
+        # transform data if needed
+        self.transform_end_point = transform_end_point
+        if self.transform_end_point is not None:
+            self.transform_to = transform_to if transform_to is not None else np.array([0, 1])
+            start_pos, end_pos = self.transform_end_point[0], self.transform_end_point[1]
+            self.transform_mat, self.transform_origin = self.compute_transform(start_pos, end_pos, self.transform_to)
+            self.x, self.y = self.transform_data(self.x, self.y)
+
+        self.preprocess('displacement', displacement_preprocess)
+        self.preprocess('velocity', velocity_preprocess)
+        self.preprocess('acceleration', acceleration_preprocess)
+
+    def assign_preprocess_function(self,
+                                   preprocess_var: str,
+                                   preprocess: Preprocesses,):
+        if preprocess == Preprocesses.LOW_BUTTER:
+            return self.low_butter, None
+        elif preprocess == Preprocesses.CENT_DIFF:
+            if preprocess_var == 'displacement':
+                cent_diff_order = 1
+            elif preprocess_var == 'velocity':
+                cent_diff_order = 2
+            elif preprocess_var == 'acceleration':
+                cent_diff_order = 3
+            else:
+                raise ValueError('The preprocess variable has to be either displacement, velocity, or acceleration!')
+
+            return self.cent_diff, (cent_diff_order, )  # return a tuple of arguments
+
+    def low_butter(self):
+        self.x = low_butter(self.x, self.fs, self.fc)
+        self.y = low_butter(self.y, self.fs, self.fc)
+
+    def cent_diff(self, cent_diff_order: int = 2):
+        print(cent_diff_order)
+        if cent_diff_order == 2:
+            self.x_vel = cent_diff(self.time, self.x)
+            self.y_vel = cent_diff(self.time, self.y)
+
+        elif cent_diff_order == 3:
+            self.x_acc = cent_diff(self.time, self.x_vel)
+            self.y_acc = cent_diff(self.time, self.y_vel)
+
+        else:
+            raise ValueError('The order of the central difference has to be either 1 (for velocity ) or 2 '
+                             '(for acceleration!')
 
     def transform_data(self, x, y):
         coord = np.concatenate([np.expand_dims(x, axis=0),
@@ -86,7 +132,6 @@ class Trajectory2D(TrajectoryBase):
         self.x, self.y, self.time, missing_info = fill_missing_data(
             x=self.x, y=self.y, time=self.time, missing_data_value=self.missing_data_value,
         )
-        print(missing_info)
         return missing_info['contain_missing'], missing_info['n_missing'], missing_info['missing_ind']
 
     @staticmethod
@@ -127,15 +172,6 @@ class Trajectory2D(TrajectoryBase):
     @n_frames.setter
     def n_frames(self, value):
         self._n_frames = value
-
-    def preprocess_displacement(self):
-        pass
-
-    def preprocess_velocity(self):
-        pass
-
-    def preprocess_acceleration(self):
-        pass
 
     @property
     def movement_displacement(self):
@@ -193,18 +229,15 @@ for par_id in par_id_all:
                 traj = Trajectory2D(
                     x=temp_x,
                     y=temp_y,
-                    time=temp['traj_ind'].values,
+                    fs=60,  # Hz, time stamp is not available from the dataset
 
                     transform_end_point=transform_end_point,
                     transform_to=np.array([0, 1]),
                 )
 
                 plt.figure()
+                plt.scatter(traj.x_original, traj.y_original)
                 plt.scatter(traj.x, traj.y)
-                traj.missing_data()
-                plt.plot(traj.x, traj.y)
-
-
 
                 # plt.plot(traj.transform_origin[0], traj.transform_origin[1], marker='o', color='black')
                 # x_rot, y_rot = traj.transform_data(traj.x, traj.y)

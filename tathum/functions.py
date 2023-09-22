@@ -462,13 +462,3 @@ def composite_function(*functions):
         return lambda x: f(g(x))
 
     return reduce(compose, functions, lambda x: x)
-
-def get_function(process):
-    if process == Preprocesses.FILL_MISSING:
-        return fill_missing_data
-    elif process == Preprocesses.SPATIAL_TRANSFORM:
-        return composite_function(compute_transformation_3d, rotate_coord)
-    elif process == Preprocesses.LOW_BUTTER:
-        return low_butter
-    elif process == Preprocesses.CENT_DIFF:
-        return cent_diff

@@ -19,7 +19,7 @@ class TrajectoryBase(ABC):
 
                  unit: str = 'mm',
                  n_dim: int = 3,
-                 missing_data_filler: float = 0.,
+                 missing_data_value: float = 0.,
                  fs: int = 250, fc: int = 10,
                  vel_threshold: float = 50.,
                  movement_selection_method: str = 'length', movement_selection_sign: str = 'positive',
@@ -30,7 +30,7 @@ class TrajectoryBase(ABC):
         self.n_dim = n_dim
         self.fs = fs
         self.fc = fc
-        self.missing_data_filler = missing_data_filler
+        self.missing_data_value = missing_data_value
         self.spline_order = spline_order
         self.n_frames_fit = n_fit
         self.movement_selection_method = movement_selection_method
@@ -49,16 +49,26 @@ class TrajectoryBase(ABC):
     def n_frames(self, value):
         pass
 
-    @abstractmethod
-    def preprocess_displacement(self):
-        pass
+    def preprocess(self, preprocess_var: str, preprocess_tuple: tuple):
+        """
+        A generic method that goes through a tuple of preprocesses and assign the corresponding function and relevant
+        input.
+        :param preprocess_var: The variable to be preprocessed
+        :param preprocess_tuple: The tuple of preprocesses
+        """
+        for p in preprocess_tuple:
+            f, val = self.assign_preprocess_function(preprocess_var, p)
+            f() if val is None else f(*val)
 
     @abstractmethod
-    def preprocess_velocity(self):
-        pass
-
-    @abstractmethod
-    def preprocess_acceleration(self):
+    def assign_preprocess_function(self, preprocess_var: str, preprocess: Preprocesses) -> (callable, tuple):
+        """
+        An abstract method that all concrete classes need to implement. This method assigns the preprocess function
+        unique to the concrete class and the relevant variable to be preprocessed.
+        :param preprocess_var: The variable to be preprocessed
+        :param preprocess: The preprocess to be applied
+        :return: The preprocess function and the relevant input
+        """
         pass
 
     @property
