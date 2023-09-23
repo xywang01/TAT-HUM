@@ -17,9 +17,9 @@ class Trajectory2D(TrajectoryBase):
                  x: np.ndarray,
                  y: np.ndarray,
 
-                 displacement_preprocess: tuple[Preprocesses] = (Preprocesses.LOW_BUTTER, ),
-                 velocity_preprocess: tuple[Preprocesses] = (Preprocesses.CENT_DIFF, ),
-                 acceleration_preprocess: tuple[Preprocesses] = (Preprocesses.CENT_DIFF, ),
+                 displacement_preprocess: tuple[Preprocesses, ...] = (Preprocesses.LOW_BUTTER, ),
+                 velocity_preprocess: tuple[Preprocesses, ...] = (Preprocesses.CENT_DIFF, ),
+                 acceleration_preprocess: tuple[Preprocesses, ...] = (Preprocesses.CENT_DIFF, ),
 
                  transform_end_point: tuple[np.ndarray, np.ndarray] = None,
                  transform_to: np.ndarray = None,
@@ -83,6 +83,14 @@ class Trajectory2D(TrajectoryBase):
         self.preprocess('velocity', velocity_preprocess)
         self.preprocess('acceleration', acceleration_preprocess)
 
+        fig, ax = plt.subplots(3, 1)
+        ax[0].plot(self.time, self.x)
+        ax[0].plot(self.time, self.y)
+        ax[1].plot(self.time, self.x_vel)
+        ax[1].plot(self.time, self.y_vel)
+        ax[2].plot(self.time, self.x_acc)
+        ax[2].plot(self.time, self.y_acc)
+
     def assign_preprocess_function(self,
                                    preprocess_var: str,
                                    preprocess: Preprocesses,):
@@ -105,7 +113,6 @@ class Trajectory2D(TrajectoryBase):
         self.y = low_butter(self.y, self.fs, self.fc)
 
     def cent_diff(self, cent_diff_order: int = 2):
-        print(cent_diff_order)
         if cent_diff_order == 2:
             self.x_vel = cent_diff(self.time, self.x)
             self.y_vel = cent_diff(self.time, self.y)
@@ -233,6 +240,9 @@ for par_id in par_id_all:
 
                     transform_end_point=transform_end_point,
                     transform_to=np.array([0, 1]),
+
+                    velocity_preprocess=(Preprocesses.CENT_DIFF, Preprocesses.LOW_BUTTER, ),
+                    acceleration_preprocess=(Preprocesses.CENT_DIFF, Preprocesses.LOW_BUTTER, ),
                 )
 
                 plt.figure()
