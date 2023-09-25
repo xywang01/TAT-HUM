@@ -23,7 +23,7 @@ class TrajectoryBase(ABC):
                  fs: int = 250, fc: int = 10,
                  vel_threshold: float = 50.,
                  movement_selection_method: str = 'length', movement_selection_sign: str = 'positive',
-                 spline_order: int = 3, n_fit: int = 100,
+                 spline_order: int = 3, n_spline_fit: int = 100,
                  ):
         self.vel_threshold = vel_threshold
         self.unit = unit
@@ -32,9 +32,10 @@ class TrajectoryBase(ABC):
         self.fc = fc
         self.missing_data_value = missing_data_value
         self.spline_order = spline_order
-        self.n_frames_fit = n_fit
+        self.n_spline_fit = n_spline_fit
         self.movement_selection_method = movement_selection_method
         self.movement_selection_sign = movement_selection_sign
+        self.start_time, self.end_time, self.movement_ind = np.nan, np.nan, np.nan
 
     @property
     @abstractmethod
@@ -105,7 +106,7 @@ class TrajectoryBase(ABC):
         pass
 
     @abstractmethod
-    def find_start_and_end_pos(self):
+    def find_start_and_end_pos(self, time_cutoff: float):
         """
         Abstract method to be called after compute_movement_boundaries().
 
@@ -186,6 +187,16 @@ class TrajectoryBase(ABC):
 
         return time_start, time_end, vel_threshold_ind
 
+    def validate_movement(self):
+        """
+        Check to see if the trajectory contains valid movement
+        """
+        if np.isnan(self.start_time) | np.isnan(self.end_time):
+            return False
+        elif len(self.movement_ind) <= self.spline_order:  # when few data points are detected
+            return False
+        else:
+            return True
 
 
 
