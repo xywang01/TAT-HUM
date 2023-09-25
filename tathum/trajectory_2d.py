@@ -129,7 +129,66 @@ class Trajectory2D(TrajectoryBase):
             self.x_acc_spline = np.nan
             self.y_acc_spline = np.nan
 
+    def assign_preprocess_function(self,
+                                   preprocess_var: str,
+                                   preprocess: Preprocesses,):
+        """
+        A concrete implementation of the base class TrajectoryBase.
+        Crucially, this assigns the unique preprocess wrapper functions specific to the current class. See the wrapper
+        functions' respective implementations for details.
+        """
+        if preprocess_var == 'displacement':
+            preprocess_order = 1
+        elif preprocess_var == 'velocity':
+            preprocess_order = 2
+        elif preprocess_var == 'acceleration':
+            preprocess_order = 3
+        else:
+            raise ValueError('The preprocess variable has to be either displacement, velocity, or acceleration!')
+
+        if preprocess == Preprocesses.LOW_BUTTER:
+            return self.low_butter, (preprocess_order, )
+        elif preprocess == Preprocesses.CENT_DIFF:
+            return self.cent_diff, (preprocess_order, )  # return a tuple of arguments
+
+    def low_butter(self, low_butter_order: int = 1):
+        """
+        A wrapper function for the low_butter() from tathum.functions specific to the current Trajectory2D class.
+        """
+        if low_butter_order == 1:
+            self.x = low_butter(self.x, self.fs, self.fc)
+            self.y = low_butter(self.y, self.fs, self.fc)
+        elif low_butter_order == 2:
+            self.x_vel = low_butter(self.x_vel, self.fs, self.fc)
+            self.y_vel = low_butter(self.y_vel, self.fs, self.fc)
+        elif low_butter_order == 3:
+            self.x_acc = low_butter(self.x_acc, self.fs, self.fc)
+            self.y_acc = low_butter(self.y_acc, self.fs, self.fc)
+        else:
+            raise ValueError('The order of the low-pass Butterworth filter has to be either 1 (for displacement), 2 '
+                             '(for velocity), or 3 (for acceleration)!')
+
+    def cent_diff(self, cent_diff_order: int = 2):
+        """
+        A wrapper function for the cent_diff() from tathum.functions specific to the current Trajectory2D class.
+        """
+        if cent_diff_order == 2:
+            self.x_vel = cent_diff(self.time, self.x)
+            self.y_vel = cent_diff(self.time, self.y)
+
+        elif cent_diff_order == 3:
+            self.x_acc = cent_diff(self.time, self.x_vel)
+            self.y_acc = cent_diff(self.time, self.y_vel)
+
+        else:
+            raise ValueError('The order of the central difference has to be either 1 (for velocity ) or 2 '
+                             '(for acceleration!')
+
     def find_start_and_end_pos(self, time_cutoff: float = 0.2):
+        """
+        Implementation of the abstract method in the base class TrajectoryBase, specific to the current Trajectory2D
+        class.
+        """
         ind_start = (self.time < self.start_time) & (self.time > self.start_time - time_cutoff)
         if np.any(ind_start):
             start_x = self.x[ind_start]
@@ -148,50 +207,6 @@ class Trajectory2D(TrajectoryBase):
 
         return mean_start, mean_end
 
-    def assign_preprocess_function(self,
-                                   preprocess_var: str,
-                                   preprocess: Preprocesses,):
-        if preprocess_var == 'displacement':
-            preprocess_order = 1
-        elif preprocess_var == 'velocity':
-            preprocess_order = 2
-        elif preprocess_var == 'acceleration':
-            preprocess_order = 3
-        else:
-            raise ValueError('The preprocess variable has to be either displacement, velocity, or acceleration!')
-
-        if preprocess == Preprocesses.LOW_BUTTER:
-            return self.low_butter, (preprocess_order, )
-        elif preprocess == Preprocesses.CENT_DIFF:
-            return self.cent_diff, (preprocess_order, )  # return a tuple of arguments
-
-    def low_butter(self, low_butter_order: int = 1):
-        if low_butter_order == 1:
-            self.x = low_butter(self.x, self.fs, self.fc)
-            self.y = low_butter(self.y, self.fs, self.fc)
-        elif low_butter_order == 2:
-            self.x_vel = low_butter(self.x_vel, self.fs, self.fc)
-            self.y_vel = low_butter(self.y_vel, self.fs, self.fc)
-        elif low_butter_order == 3:
-            self.x_acc = low_butter(self.x_acc, self.fs, self.fc)
-            self.y_acc = low_butter(self.y_acc, self.fs, self.fc)
-        else:
-            raise ValueError('The order of the low-pass Butterworth filter has to be either 1 (for displacement), 2 '
-                             '(for velocity), or 3 (for acceleration)!')
-
-    def cent_diff(self, cent_diff_order: int = 2):
-        if cent_diff_order == 2:
-            self.x_vel = cent_diff(self.time, self.x)
-            self.y_vel = cent_diff(self.time, self.y)
-
-        elif cent_diff_order == 3:
-            self.x_acc = cent_diff(self.time, self.x_vel)
-            self.y_acc = cent_diff(self.time, self.y_vel)
-
-        else:
-            raise ValueError('The order of the central difference has to be either 1 (for velocity ) or 2 '
-                             '(for acceleration!')
-
     def transform_data(self, x, y):
         coord = np.concatenate([np.expand_dims(x, axis=0),
                                 np.expand_dims(y, axis=0)], axis=0)
@@ -202,7 +217,6 @@ class Trajectory2D(TrajectoryBase):
         """
         A wrapper function for the fill_missing_data() from tathum.functions.
         """
-
         self.x, self.y, self.time, missing_info = fill_missing_data(
             x=self.x, y=self.y, time=self.time, missing_data_value=self.missing_data_value,
         )
@@ -217,6 +231,9 @@ class Trajectory2D(TrajectoryBase):
 
     @property
     def transform_end_point(self):
+        """
+        The 2D end points used to determine the transformation matrix.
+        """
         return self._transform_end_point
 
     @transform_end_point.setter
@@ -273,6 +290,9 @@ class Trajectory2D(TrajectoryBase):
 
     @property
     def movement_velocity(self):
+        """
+        The velocity coordinate used to determine the movement boundaries.
+        """
         return self._movement_velocity
 
     @movement_velocity.setter
@@ -291,64 +311,3 @@ class Trajectory2D(TrajectoryBase):
             ], axis=1), axis=1)
         else:
             raise ValueError('The movement selection axis has to be either x, y, or xy!')
-
-
-import pandas as pd
-import matplotlib.pyplot as plt
-
-raw_data = pd.read_csv('./demo/demo_data/demo_data_2d.csv')
-transform_data = pd.read_csv('./demo/demo_data/transform_data_2d.csv')
-
-par_id_all = raw_data['par_id'].unique()
-vib_all = raw_data['vib'].unique()
-modality_all = raw_data['modality'].unique()
-vision_all = raw_data['vision'].unique()
-
-for par_id in par_id_all:
-    for modality in modality_all:
-        temp_transform = transform_data[
-            (transform_data['par_id'] == par_id) &
-            (transform_data['modality'] == modality)]
-        exp_end_point = temp_transform[['x', 'y']].to_numpy()
-        exp_end_point = (exp_end_point[0], exp_end_point[1])  # reformat the data for the appropriate input type
-
-        for vib in vib_all:
-            for vision in vision_all:
-                df_idx = np.where((raw_data['par_id'] == par_id) &
-                                  (raw_data['vib'] == vib) &
-                                  (raw_data['modality'] == modality) &
-                                  (raw_data['vision'] == vision))[0]
-                temp = raw_data.iloc[df_idx]
-
-                temp_x = temp['x'].values
-                temp_y = temp['y'].values
-
-                temp_x[[2, 3, 4, 6, 7]] = 0.
-                temp_y[[2, 3, 4, 6, 7]] = 0.
-
-                traj = Trajectory2D(
-                    x=temp_x,
-                    y=temp_y,
-                    fs=60,  # Hz, time stamp is not available from the dataset
-
-                    transform_end_point=exp_end_point,
-                    transform_to=np.array([0, 1]),
-
-                    displacement_preprocess=(Preprocesses.LOW_BUTTER, ),
-                    velocity_preprocess=(Preprocesses.CENT_DIFF, Preprocesses.LOW_BUTTER, ),
-                    acceleration_preprocess=(Preprocesses.CENT_DIFF, Preprocesses.LOW_BUTTER, ),
-                )
-
-                plt.figure()
-
-                plt.scatter(traj.x, traj.y)
-                plt.plot(traj.x_fit, traj.y_fit)
-
-                # plt.plot(traj.transform_origin[0], traj.transform_origin[1], marker='o', color='black')
-                # x_rot, y_rot = traj.transform_data(traj.x, traj.y)
-                # plt.plot(x_rot, y_rot)
-                plt.axis('equal')
-                raise ValueError
-
-
-
