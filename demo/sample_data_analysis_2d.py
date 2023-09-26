@@ -40,7 +40,7 @@ for par_id in par_id_all:
                     y=temp_y,
                     fs=60,  # Hz, time stamp is not available from the dataset
 
-                    transform_end_point=exp_end_point,
+                    transform_end_points=exp_end_point,
                     transform_to=np.array([0, 1]),
 
                     displacement_preprocess=(Preprocesses.LOW_BUTTER, ),

@@ -17,7 +17,7 @@ class Trajectory2D(TrajectoryBase):
                  velocity_preprocess: tuple[Preprocesses, ...] = (Preprocesses.CENT_DIFF, ),
                  acceleration_preprocess: tuple[Preprocesses, ...] = (Preprocesses.CENT_DIFF, ),
 
-                 transform_end_point: tuple[np.ndarray, np.ndarray] = None,
+                 transform_end_points: tuple[np.ndarray, np.ndarray] = None,
                  transform_to: np.ndarray = None,
 
                  time: typing.Optional[np.ndarray] = None,
@@ -30,7 +30,8 @@ class Trajectory2D(TrajectoryBase):
                  vel_threshold: float = 50.,
 
                  movement_selection_ax: str = 'y',
-                 movement_selection_method: str = 'length', movement_selection_sign: str = 'positive',
+                 movement_selection_method: str = 'length',
+                 movement_selection_sign: str = 'positive',
 
                  movement_pos_time_cutoff: float = 0.2,
 
@@ -73,12 +74,13 @@ class Trajectory2D(TrajectoryBase):
             self.fc = find_optimal_cutoff_frequency(self.x, self.fs)
 
         # transform data if needed
-        self.transform_end_point = transform_end_point
-        if self.transform_end_point is not None:
+        self.transform_end_points = transform_end_points
+        if self.transform_end_points is not None:
             self.transform_to = transform_to if transform_to is not None else np.array([0, 1])
-            start_pos, end_pos = self.transform_end_point[0], self.transform_end_point[1]
+            start_pos, end_pos = self.transform_end_points[0], self.transform_end_points[1]
             self.transform_mat, self.transform_origin = self.compute_transform(start_pos, end_pos, self.transform_to)
             self.x, self.y = self.transform_data(self.x, self.y)
+            self.x_original, self.y_original = self.transform_data(self.x_original, self.y_original)
 
         self.preprocess('displacement', displacement_preprocess)
         self.preprocess('velocity', velocity_preprocess)
@@ -110,46 +112,41 @@ class Trajectory2D(TrajectoryBase):
             _, self.x_acc_fit, self.x_acc_spline = self.b_spline_fit_1d(self.time_movement, self.x_acc_movement, self.n_spline_fit)
             _, self.y_acc_fit, self.y_acc_spline = self.b_spline_fit_1d(self.time_movement, self.y_acc_movement, self.n_spline_fit)
         else:
-            self.rt = np.nan
-            self.mt = np.nan
-            self.start_pos, self.end_pos = np.empty(3) * np.nan, np.empty(3) * np.nan
+            self.rt = None
+            self.mt = None
+            self.start_pos, self.end_pos = None, None
 
-            self.time_movement = np.nan
-            self.x_movement = np.nan
-            self.y_movement = np.nan
-            self.x_vel_movement = np.nan
-            self.y_vel_movement = np.nan
-            self.x_acc_movement = np.nan
-            self.y_acc_movement = np.nan
+            self.time_movement = None
+            self.x_movement = None
+            self.y_movement = None
+            self.x_vel_movement = None
+            self.y_vel_movement = None
+            self.x_acc_movement = None
+            self.y_acc_movement = None
 
-            self.x_spline = np.nan
-            self.y_spline = np.nan
-            self.x_vel_spline = np.nan
-            self.y_vel_spline = np.nan
-            self.x_acc_spline = np.nan
-            self.y_acc_spline = np.nan
+            self.x_spline = None
+            self.y_spline = None
+            self.x_vel_spline = None
+            self.y_vel_spline = None
+            self.x_acc_spline = None
+            self.y_acc_spline = None
 
     def assign_preprocess_function(self,
                                    preprocess_var: str,
                                    preprocess: Preprocesses,):
         """
         A concrete implementation of the base class TrajectoryBase.
-        Crucially, this assigns the unique preprocess wrapper functions specific to the current class. See the wrapper
+
+        Crucially, this assigns the unique preprocess wrapper functions unique to the current class. See the wrapper
         functions' respective implementations for details.
         """
-        if preprocess_var == 'displacement':
-            preprocess_order = 1
-        elif preprocess_var == 'velocity':
-            preprocess_order = 2
-        elif preprocess_var == 'acceleration':
-            preprocess_order = 3
-        else:
-            raise ValueError('The preprocess variable has to be either displacement, velocity, or acceleration!')
-
+        preprocess_order = self.find_preprocess_order(preprocess_var)
         if preprocess == Preprocesses.LOW_BUTTER:
             return self.low_butter, (preprocess_order, )
         elif preprocess == Preprocesses.CENT_DIFF:
             return self.cent_diff, (preprocess_order, )  # return a tuple of arguments
+        else:
+            raise ValueError('The preprocess is not recognized!')
 
     def low_butter(self, low_butter_order: int = 1):
         """
@@ -230,14 +227,14 @@ class Trajectory2D(TrajectoryBase):
         return compute_transformation_2d(start_pos, end_pos, transform_to), np.expand_dims(start_pos, 1)  # use the start position as the origin
 
     @property
-    def transform_end_point(self):
+    def transform_end_points(self):
         """
         The 2D end points used to determine the transformation matrix.
         """
         return self._transform_end_point
 
-    @transform_end_point.setter
-    def transform_end_point(self, value):
+    @transform_end_points.setter
+    def transform_end_points(self, value):
         if value is None:
             self._transform_end_point = None
         else:
@@ -256,25 +253,6 @@ class Trajectory2D(TrajectoryBase):
 
             self._transform_end_point = value
 
-    @property
-    def n_frames(self):
-        return self._n_frames
-
-    @n_frames.setter
-    def n_frames(self, value):
-        self._n_frames = value
-
-    @property
-    def movement_displacement(self):
-        """
-        The displacement coordinate used to determine the movement boundaries.
-        """
-        return self._movement_displacement
-
-    @movement_displacement.setter
-    def movement_displacement(self, value):
-        self._movement_displacement = value
-
     def find_movement_displacement(self, movement_selection_ax: str = 'y'):
         if movement_selection_ax == 'x':
             return self.x
@@ -288,17 +266,6 @@ class Trajectory2D(TrajectoryBase):
         else:
             raise ValueError('The movement selection axis has to be either x, y, or xy!')
 
-    @property
-    def movement_velocity(self):
-        """
-        The velocity coordinate used to determine the movement boundaries.
-        """
-        return self._movement_velocity
-
-    @movement_velocity.setter
-    def movement_velocity(self, value):
-        self._movement_velocity = value
-
     def find_movement_velocity(self, movement_selection_ax: str = 'y'):
         if movement_selection_ax == 'x':
             return self.x_vel
@@ -311,3 +278,5 @@ class Trajectory2D(TrajectoryBase):
             ], axis=1), axis=1)
         else:
             raise ValueError('The movement selection axis has to be either x, y, or xy!')
+
+    # todo add visualization method
