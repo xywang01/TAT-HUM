@@ -41,7 +41,7 @@ n_missing_max = 15
 
 # experiment's principal movement directions - For different experiments, the principal axes might differ depending on
 # the coordinate system established for the motion capture device
-principal_ax = 'xz'
+movement_plane = 'xz'
 
 # target location in a 2d space - determined based on the experimental setup
 target_location_2d = (
@@ -211,7 +211,7 @@ for par_id_ind, par_id in enumerate(par_id_all):
 
                     # initialize a Trajectory object using this trial's trajectory data
                     trajectory = Trajectory(raw_data.x, raw_data.y, raw_data.z,
-                                            principal_dir=principal_ax,
+                                            movement_plane_ax=movement_plane,
                                             time=raw_data.time, fs=250, fc=10,
                                             transform_end_points=end_points)
 

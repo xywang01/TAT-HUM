@@ -7,19 +7,19 @@ Written by X.M. Wang.
 Wang, X.M., & Welsh, T.N. (2023). TAT-HUM: Trajectory Analysis Toolkit for Human Movements in Python.
 
 """
+import typing
 
 from .coord import Coord
 
 import numpy as np
-from scipy import interpolate
-from scipy.signal import butter, filtfilt
 from scipy.spatial.transform import Rotation
 from skspatial.objects import Plane, Points, Vector
 from pytransform3d.rotations import matrix_from_axis_angle
 import matplotlib.pyplot as plt
+from trajectory_base import TrajectoryBase
+from functions import Preprocesses, cent_diff, low_butter, fill_missing_data, find_optimal_cutoff_frequency
 
-
-class Trajectory:
+class Trajectory(TrajectoryBase):
     """
     Automatically processes trajectory data.
     """
@@ -29,22 +29,37 @@ class Trajectory:
     time = Coord()
 
     def __init__(self,
-                 x, y, z, time=None,
+                 x: np.ndarray,
+                 y: np.ndarray,
+                 z: np.ndarray,
+
+                 displacement_preprocess: tuple[Preprocesses, ...] = (Preprocesses.LOW_BUTTER,),
+                 velocity_preprocess: tuple[Preprocesses, ...] = (Preprocesses.CENT_DIFF,),
+                 acceleration_preprocess: tuple[Preprocesses, ...] = (Preprocesses.CENT_DIFF,),
+
                  transform_end_points=None,  # end points used for spatial transformation
-                 principal_dir='xz',  # 2D plane that specifies the principal direction of the reach
+
+                 time: typing.Optional[np.ndarray] = None,
+
+                 movement_plane_ax='xz',  # 2D plane that specifies the principal direction of the reach
                  primary_dir='z',  # the primary movement direction
                  ground_dir='y',  # the ground's normal direction
-                 vel_threshold=50.,
-                 time_cutoff=0.2,  # used for finding the start and end positions
-                 n_fit=100, fs=250, fc=10, spline_order=3,
-                 unit='mm',
-                 missing_data_filler=0.,
+
+                 movement_selection_ax='z',
                  movement_selection_method='length',
                  movement_selection_sign=None,
-                 movement_selection_dir=None,
-    ):
+
+                 unit: str = 'mm',
+                 missing_data_value: float = 0.,
+                 fs: typing.Optional[int] = None, fc: typing.Optional[int] = None,
+                 vel_threshold: float = 50.,
+
+                 movement_pos_time_cutoff=0.2,  # used for finding the start and end positions
+
+                 spline_order=3, n_spline_fit=100,
+                 ):
         """
-        :param n_fit: number of fitted time stamps for the B-spline fit.
+        :param n_spline_fit: number of fitted time stamps for the B-spline fit.
         :param time: the time stamps, if not supplied will calculate using sampling frequency.
         :param fs: sampling frequency.
         :param fc: cutoff frequency for the low-pass Butterworth filter.
@@ -57,9 +72,9 @@ class Trajectory:
         occurred. If provided, the best-fitting plane for these points will be computed and used to transform the
         trajectory so that the transformed movement would take place on a horizontal surface. This could be derived
         using the same Trajectory class.
-        :param principal_dir: The principal directions of the movement.
+        :param movement_plane_ax: The 2D plane of interest.
         :param vel_threshold: The velocity threshold to determine movement initiation and termination.
-        :param time_cutoff: The amount of time before/after the movement initiation/termination to consider when
+        :param movement_pos_time_cutoff: The amount of time before/after the movement initiation/termination to consider when
         computing the trajectory's end positions. Instead of using the position at a particular time, the end position
         is the average of all positions within this time cutoff range.
         :param mt_threshold: threshold for determining whether the trial contains valid movement. MT below this
@@ -77,22 +92,42 @@ class Trajectory:
         collection period. See movement_selection_sign for more.
         :param movement_selection_sign: can be chosen from ('positive', 'negative'), only applies to directional
         movement. The sign is determined by the difference between the end and start position.
-        :param movement_selection_dir: the axis ('x', 'y', 'z') along which the movement selection should be performed
+        :param movement_selection_ax: the axis ('x', 'y', 'z') along which the movement selection should be performed
         """
-        self.unit = unit
-        self.fs = fs
-        self.fc = fc
-        self.missing_data_filler = missing_data_filler
-        self.spline_order = spline_order
-        self.n_frames_fit = n_fit
-
         self.x_original, self.y_original, self.z_original = x.copy(), y.copy(), z.copy()  # keep a separate copy of the original data
         self.x, self.y, self.z = x, y, z
+        self.x_vel, self.y_vel, self.z_vel = np.array([]), np.array([]), np.array([])
+        self.x_acc, self.y_acc, self.z_acc = np.array([]), np.array([]), np.array([])
         self.n_frames = self.validate_size()
-        self.principal_dir = principal_dir
-        self.secondary_dir = None
+
+        if (time is None) & (fs is None):
+            raise ValueError('You have to either specify the time stamps or the sampling frequency!')
+        if time is None:
+            self.time = np.linspace(0, self.n_frames * 1 / fs, num=self.n_frames, endpoint=False)
+            self.time_original = self.time.copy()
+        else:
+            self.time_original = time.copy()
+            self.time = time
+            fs = 1 / np.mean(np.diff(self.time))
+            if len(self.time) != self.n_frames:
+                raise ValueError('The size of the input time stamps is not the same as the size of the coordinates!')
+
+        super().__init__(
+            unit=unit,
+            missing_data_value=missing_data_value,
+            fs=fs, fc=fc,
+            vel_threshold=vel_threshold,
+            movement_selection_method=movement_selection_method, movement_selection_sign=movement_selection_sign,
+            spline_order=spline_order, n_spline_fit=n_spline_fit, )
+
+        # fill in missing data before performing spatial transformation (otherwise the missing data value would be
+        # transformed as well)
+        self.contain_missing, self.n_missing, self.ind_missing = self.missing_data()
+
+        self.movement_plane_ax = movement_plane_ax
         self.primary_dir = primary_dir
         self.ground_plane = None
+        self.secondary_dir = None
         self.ground_dir = ground_dir
 
         self.movement_selection_method = movement_selection_method
@@ -100,14 +135,14 @@ class Trajectory:
         if self.movement_selection_method == 'sign':
             if self.movement_selection_sign is None:
                 raise ValueError('movement_selection_method is set to "sign" but movement_selection_sign was not specified!')
-            if movement_selection_dir is None:
+            if movement_selection_ax is None:
                 self.movement_selection_dir = self.primary_dir
             else:
-                if movement_selection_dir == 'x':
+                if movement_selection_ax == 'x':
                     self.movement_selection_dir = 0
-                elif movement_selection_dir == 'y':
+                elif movement_selection_ax == 'y':
                     self._primary_dir = 1
-                elif movement_selection_dir == 'z':
+                elif movement_selection_ax == 'z':
                     self._primary_dir = 2
                 else:
                     raise ValueError('Invalid movement_selection_dir! Please use the following: x, y, or z')
@@ -128,167 +163,170 @@ class Trajectory:
         # eliminate missing data; need to do it before the transformation
         self.contain_missing, self.n_missing, self.ind_missing = self.missing_data()
 
+        # if the cutoff frequency is not specified, then it will be computed automatically
+        if self.fc is None:
+            self.fc = find_optimal_cutoff_frequency(self.x, self.fs)
+
         # transform the data if necessary
-        if transform_end_points is not None:
-            self.x, self.y, self.z = self.transform_data(self.x, self.y, self.z, transform_end_points)
+        self.transform_end_points = transform_end_points
+        if self.transform_end_points is not None:
+            self.transform_mat, self.transform_origin = self.compute_transformation(self.transform_end_points)
+            self.x, self.y, self.z = self.transform_data(self.x, self.y, self.z)
             self.x_original, self.y_original, self.z_original = self.transform_data(
-                self.x_original, self.y_original, self.z_original, transform_end_points)
+                self.x_original, self.y_original, self.z_original)
 
-        # smooth position
-        self.x_smooth = self.low_butter_scipy(self.x)
-        self.y_smooth = self.low_butter_scipy(self.y)
-        self.z_smooth = self.low_butter_scipy(self.z)
-
-        # 3d distance to the origin
-        self.pos_3d = np.sqrt(self.x_smooth ** 2 + self.y_smooth ** 2 + self.z_smooth ** 2)
-        self.vel_3d = self.cent_diff(self.time, self.pos_3d)
-
-        # compute velocity
-        self.x_vel = self.cent_diff(self.time, self.x_smooth)
-        self.y_vel = self.cent_diff(self.time, self.y_smooth)
-        self.z_vel = self.cent_diff(self.time, self.z_smooth)
-
-        # smooth velocity
-        self.x_vel_smooth = self.low_butter_scipy(self.x_vel)
-        self.y_vel_smooth = self.low_butter_scipy(self.y_vel)
-        self.z_vel_smooth = self.low_butter_scipy(self.z_vel)
+        self.preprocess('displacement', displacement_preprocess)
+        self.preprocess('velocity', velocity_preprocess)
+        self.preprocess('acceleration', acceleration_preprocess)
 
         # identify movement initiation and termination
-        self.start_time, self.end_time, self.movement_ind = self.find_time(vel_threshold)
-        if np.isnan(self.start_time) | np.isnan(self.end_time):
-            self.contain_movement = False
-        elif len(self.movement_ind) <= self.spline_order:  # when few data points are detected
-            self.contain_movement = False
+        self.movement_displacement = self.find_movement_displacement(movement_selection_ax=movement_selection_ax)
+        self.movement_velocity = self.find_movement_velocity(movement_selection_ax=movement_selection_ax)
+        self.start_time, self.end_time, self.movement_ind = self.compute_movement_boundaries()
+        self.contain_movement = self.validate_movement()
 
         if self.contain_movement:
             self.rt = self.start_time
             self.mt = self.end_time - self.start_time
+            self.start_pos, self.end_pos = self.find_start_and_end_pos(time_cutoff=movement_pos_time_cutoff)
 
-            self.start_pos, self.end_pos = self.find_start_and_end_pos(time_cutoff)
-
-            # normalize the start and end positions so that the reach starts at the origin
-            self.start_pos_norm = self.start_pos - self.start_pos
-            self.end_pos_norm = self.end_pos - self.start_pos
-
-            self.movement_time = self.time[self.movement_ind]
+            self.time_movement = self.time[self.movement_ind]
             self.x_movement = self.x[self.movement_ind]
             self.y_movement = self.y[self.movement_ind]
             self.z_movement = self.z[self.movement_ind]
-            self.x_movement_fit, self.movement_time_fit = self.b_spline_fit_1d(
-                self.movement_time, self.x_movement, self.n_frames_fit, full_output=True)
-            self.y_movement_fit = self.b_spline_fit_1d(self.movement_time, self.y_movement, self.n_frames_fit)
-            self.z_movement_fit = self.b_spline_fit_1d(self.movement_time, self.z_movement, self.n_frames_fit)
-
             self.x_vel_movement = self.x_vel[self.movement_ind]
             self.y_vel_movement = self.y_vel[self.movement_ind]
             self.z_vel_movement = self.z_vel[self.movement_ind]
-            self.x_vel_movement_fit = self.b_spline_fit_1d(self.movement_time, self.x_vel_movement, self.n_frames_fit)
-            self.y_vel_movement_fit = self.b_spline_fit_1d(self.movement_time, self.y_vel_movement, self.n_frames_fit)
-            self.z_vel_movement_fit = self.b_spline_fit_1d(self.movement_time, self.z_vel_movement, self.n_frames_fit)
+            self.x_acc_movement = self.x_vel[self.movement_ind]
+            self.y_acc_movement = self.y_vel[self.movement_ind]
+            self.z_acc_movement = self.z_vel[self.movement_ind]
+
+            self.time_fit, self.x_fit, self.x_spline = self.b_spline_fit_1d(self.time_movement, self.x_movement, self.n_spline_fit)
+            _, self.y_fit, self.y_spline = self.b_spline_fit_1d(self.time_movement, self.y_movement, self.n_spline_fit)
+            _, self.z_fit, self.z_spline = self.b_spline_fit_1d(self.time_movement, self.z_movement, self.n_spline_fit)
+            _, self.x_vel_fit, self.x_vel_spline = self.b_spline_fit_1d(self.time_movement, self.x_vel_movement, self.n_spline_fit)
+            _, self.y_vel_fit, self.y_vel_spline = self.b_spline_fit_1d(self.time_movement, self.y_vel_movement, self.n_spline_fit)
+            _, self.z_vel_fit, self.z_vel_spline = self.b_spline_fit_1d(self.time_movement, self.z_vel_movement, self.n_spline_fit)
+            _, self.x_acc_fit, self.x_acc_spline = self.b_spline_fit_1d(self.time_movement, self.x_acc_movement, self.n_spline_fit)
+            _, self.y_acc_fit, self.y_acc_spline = self.b_spline_fit_1d(self.time_movement, self.y_acc_movement, self.n_spline_fit)
+            _, self.z_acc_fit, self.z_acc_spline = self.b_spline_fit_1d(self.time_movement, self.z_acc_movement, self.n_spline_fit)
         else:
             # in case the trajectory does not satisfy the movement initiation/termination criteria, in cases such as
             # when the participant number moved during the data collection period
-            self.rt = np.nan
-            self.mt = np.nan
+            self.rt = None
+            self.mt = None
+            self.start_pos, self.end_pos = None, None
 
-            self.start_pos, self.end_pos = np.empty(3) * np.nan, np.empty(3) * np.nan,
-            self.start_pos_norm, self.end_pos_norm = self.start_pos, self.end_pos
+            self.x_movement = None
+            self.y_movement = None
+            self.z_movement = None
+            self.x_vel_movement = None
+            self.y_vel_movement = None
+            self.z_vel_movement = None
+            self.x_acc_movement = None
+            self.y_acc_movement = None
+            self.z_acc_movement = None
 
-            self.movement_time = np.nan
-            self.x_fit_trimmed = np.nan
-            self.y_fit_trimmed = np.nan
-            self.z_fit_trimmed = np.nan
-
-            self.x_movement_fit, self.movement_time_fit = np.nan, np.nan
-            self.y_movement_fit = np.nan
-            self.z_movement_fit = np.nan
-
-    def find_time(self, vel_threshold, ax=''):
-        """
-        :param vel_threshold: the velocity threshold, need to be in the same unit as the velocity
-        :param ax: the axis used to determine movement initiation and termination. Default is the principal directions
-        specified in the constructor. Other values are 'x', 'y', 'z', or 'xyz'
-        :return:
-
-        Find the movement initiation and termination time based on the velocity threshold and the velocity axis.
-        """
-        # determine the velocity axis to use.
-        vel_all = np.concatenate([
-            np.expand_dims(self.x_vel_smooth, 1),
-            np.expand_dims(self.y_vel_smooth, 1),
-            np.expand_dims(self.z_vel_smooth, 1),
-        ], axis=1)
-
-        if ax == '':  # default is the principal axes
-            vel_principal = vel_all[:, self.principal_dir]
-
-            # get the resultant velocity
-            vel_eval = np.sqrt(vel_principal[:, 0] ** 2 + vel_principal[:, 1] ** 2)
-        elif ax == 'x':
-            vel_eval = np.abs(vel_all[:, 0])
-        elif ax == 'y':
-            vel_eval = np.abs(vel_all[:, 1])
-        elif ax == 'z':
-            vel_eval = np.abs(vel_all[:, 2])
-        elif ax == 'xyz':
-            vel_eval = np.sqrt(vel_all[:, 0] ** 2 + vel_all[:, 1] ** 2 + vel_all[:, 2] ** 2)
+    def assign_preprocess_function(self,
+                                   preprocess_var: str,
+                                   preprocess: Preprocesses) -> (callable, tuple):
+        preprocess_order = self.find_preprocess_order(preprocess_var)
+        if preprocess == Preprocesses.LOW_BUTTER:
+            return self.low_butter, (preprocess_order, )
+        elif preprocess == Preprocesses.CENT_DIFF:
+            return self.cent_diff, (preprocess_order, )
         else:
-            raise ValueError('Unidentified axis! Enter either "" (an empty str), "x", "y", "z", or "xyz"')
+            raise ValueError('The preprocess is not recognized!')
 
-        # find movement start and end times
-        vel_threshold_ind = np.where(vel_eval >= vel_threshold)[0]
+    def low_butter(self, low_butter_order: int = 1):
+        """
+        A wrapper function for the low_butter() from tathum.functions specific to the current Trajectory2D class.
+        """
+        if low_butter_order == 1:
+            self.x = low_butter(self.x, self.fs, self.fc)
+            self.y = low_butter(self.y, self.fs, self.fc)
+            self.z = low_butter(self.z, self.fs, self.fc)
+        elif low_butter_order == 2:
+            self.x_vel = low_butter(self.x_vel, self.fs, self.fc)
+            self.y_vel = low_butter(self.y_vel, self.fs, self.fc)
+            self.z_vel = low_butter(self.z_vel, self.fs, self.fc)
+        elif low_butter_order == 3:
+            self.x_acc = low_butter(self.x_acc, self.fs, self.fc)
+            self.y_acc = low_butter(self.y_acc, self.fs, self.fc)
+            self.z_acc = low_butter(self.z_acc, self.fs, self.fc)
+        else:
+            raise ValueError('The order of the low-pass Butterworth filter has to be either 1 (for displacement), 2 '
+                             '(for velocity), or 3 (for acceleration)!')
 
-        if len(vel_threshold_ind) == 0:
-            # in case there's no movement detected
-            return np.nan, np.nan, np.nan
+    def cent_diff(self, cent_diff_order: int = 2):
+        """
+        A wrapper function for the cent_diff() from tathum.functions specific to the current Trajectory2D class.
+        """
+        if cent_diff_order == 2:
+            self.x_vel = cent_diff(self.time, self.x)
+            self.y_vel = cent_diff(self.time, self.y)
+            self.z_vel = cent_diff(self.time, self.z)
+        elif cent_diff_order == 3:
+            self.x_acc = cent_diff(self.time, self.x_vel)
+            self.y_acc = cent_diff(self.time, self.y_vel)
+            self.z_acc = cent_diff(self.time, self.z_vel)
+        else:
+            raise ValueError('The order of the central difference has to be either 1 (for velocity ) or 2 '
+                             '(for acceleration!')
 
-        vel_ind = self.consecutive(vel_threshold_ind)
+    def find_movement_displacement(self, movement_selection_ax: str = 'z'):
+        if movement_selection_ax == 'x':
+            return np.abs(self.x)
+        elif movement_selection_ax == 'y':
+            return np.abs(self.y)
+        elif movement_selection_ax == 'z':
+            return np.abs(self.z)
+        elif movement_selection_ax == 'xy':
+            return np.linalg.norm(np.concatenate([
+                np.expand_dims(self.x, axis=1),
+                np.expand_dims(self.y, axis=1)], axis=1), axis=1)
+        elif movement_selection_ax == 'xz':
+            return np.linalg.norm(np.concatenate([
+                np.expand_dims(self.x, axis=1),
+                np.expand_dims(self.z, axis=1)], axis=1), axis=1)
+        elif movement_selection_ax == 'yz':
+            return np.linalg.norm(np.concatenate([
+                np.expand_dims(self.y, axis=1),
+                np.expand_dims(self.z, axis=1)], axis=1), axis=1)
+        elif movement_selection_ax == 'xyz':
+            return np.linalg.norm(np.concatenate([
+                np.expand_dims(self.x, axis=1),
+                np.expand_dims(self.y, axis=1),
+                np.expand_dims(self.z, axis=1)], axis=1), axis=1)
+        else:
+            raise ValueError('Invalid movement_selection_ax! Please use the following: x, y, z, xy, xz, yz, or xyz')
 
-        # in case there are multiple crossings at the threshold velocity
-        if len(vel_ind) > 1:
-            if self.movement_selection_method == 'length':
-                # only use the portion of movement with the largest number of samples
-                vel_len = [len(vel) for vel in vel_ind]
-                max_vel = np.where(vel_len == np.max(vel_len))[0][0]
-                vel_threshold_ind = vel_ind[max_vel]
-
-            elif self.movement_selection_method == 'sign':
-                displacement_all = np.concatenate([
-                    np.expand_dims(self.x_smooth, 1),
-                    np.expand_dims(self.y_smooth, 1),
-                    np.expand_dims(self.z_smooth, 1),
-                ], axis=1)
-
-                displacement_eval = displacement_all[:, self.movement_selection_dir]
-
-                movement_dist = []
-                for vel in vel_ind:
-                    movement_dist.append(displacement_eval[vel[-1]] - displacement_eval[vel[0]])
-                movement_dist = np.array(movement_dist)
-
-                if self.movement_selection_sign == 'positive':
-                    segment_id = np.where(movement_dist > 0)[0]
-                else:
-                    segment_id = np.where(movement_dist < 0)[0]
-
-                if len(segment_id) == 1:
-                    vel_threshold_ind = vel_ind[segment_id[0]]
-                elif len(segment_id) > 1:
-                    # get the segment with the most data
-                    vel_len = [len(vel_ind[seg_id]) for seg_id in segment_id]
-                    max_vel = np.where(vel_len == np.max(vel_len))[0][0]
-                    vel_threshold_ind = vel_ind[segment_id[max_vel]]
-                else:
-                    print('no valid movement detected!')
-                    return np.nan, np.nan, np.nan
-
-        move_start_ind = vel_threshold_ind[0] - 1 if vel_threshold_ind[0] > 0 else 0
-        move_end_ind = vel_threshold_ind[-1] + 1 if vel_threshold_ind[-1] < self.n_frames - 1 else self.n_frames - 1
-
-        time_start = self.time[move_start_ind]
-        time_end = self.time[move_end_ind]
-
-        return time_start, time_end, vel_threshold_ind
+    def find_movement_velocity(self, movement_selection_ax: str = 'z'):
+        if movement_selection_ax == 'x':
+            return np.abs(self.x_vel)
+        elif movement_selection_ax == 'y':
+            return np.abs(self.y_vel)
+        elif movement_selection_ax == 'z':
+            return np.abs(self.z_vel)
+        elif movement_selection_ax == 'xy':
+            return np.linalg.norm(np.concatenate([
+                np.expand_dims(self.x_vel, axis=1),
+                np.expand_dims(self.y_vel, axis=1)], axis=1), axis=1)
+        elif movement_selection_ax == 'xz':
+            return np.linalg.norm(np.concatenate([
+                np.expand_dims(self.x_vel, axis=1),
+                np.expand_dims(self.z_vel, axis=1)], axis=1), axis=1)
+        elif movement_selection_ax == 'yz':
+            return np.linalg.norm(np.concatenate([
+                np.expand_dims(self.y_vel, axis=1),
+                np.expand_dims(self.z_vel, axis=1)], axis=1), axis=1)
+        elif movement_selection_ax == 'xyz':
+            return np.linalg.norm(np.concatenate([
+                np.expand_dims(self.x_vel, axis=1),
+                np.expand_dims(self.y_vel, axis=1),
+                np.expand_dims(self.z_vel, axis=1)], axis=1), axis=1)
+        else:
+            raise ValueError('Invalid movement_selection_ax! Please use the following: x, y, z, xy, xz, yz, or xyz')
 
     def compute_transformation(self, screen_corners, full_output=False):
         """
@@ -348,26 +386,23 @@ class Trajectory:
         else:
             return rotation, screen_center
 
-    def transform_data(self, x, y, z, screen_corners):
+    def transform_data(self, x, y, z):
         """
         Spatially transform the trajectory so that the trajectory is on a flat, horizontal plane.
         :param x: x coordinate
         :param y: y coordinate
         :param z: z coordinate
-        :param screen_corners: the corners of the screen
-        :return:
+        :return: transformed coordinates
         """
-        rotation, screen_center = self.compute_transformation(screen_corners)
         coord = np.concatenate([np.expand_dims(x, axis=1),
                                 np.expand_dims(y, axis=1),
                                 np.expand_dims(z, axis=1)], axis=1)
-        coord -= screen_center
-        coord_rot = rotation.apply(coord)
+        coord -= self.transform_origin
+        coord_rot = self.transform_mat.apply(coord)
         return coord_rot[:, 0], coord_rot[:, 1], coord_rot[:, 2]
 
     def find_start_and_end_pos(self, time_cutoff):
         """
-
         :param time_cutoff: The amount of time before/after the movement initiation/termination to consider when
         computing the trajectory's end positions. Instead of using the position at a particular time, the end position
         is the average of all positions within this time cutoff range.
@@ -394,14 +429,6 @@ class Trajectory:
 
         return mean_start, mean_end
 
-    def validate_size(self):
-        """ Validate input coordinate size. """
-        n_x, n_y, n_z = len(self.x), len(self.y), len(self.z)
-        if not (n_x == n_y == n_z):
-            raise ValueError("The input x, y, and z have to be of the same size! \n"
-                             f"Instead, len(x)={len(self.x)}, len(y)={len(self.y)}, len(z)={len(self.z)}")
-        return n_x
-
     @staticmethod
     def consecutive(data, step_size=1):
         """ splits the missing data indices into chunks"""
@@ -416,72 +443,10 @@ class Trajectory:
         difference is small, then we will use linear interpolation to fill in the gap. By default, the threshold for
         each axis is 1 mm/s.
         """
-        # contain_anomolies = False
-        missing_ind = np.where(self.x == self.missing_data_filler)[0]
-        not_missing_ind = np.where(self.x != self.missing_data_filler)[0]
-        if len(missing_ind) > 0:
+        self.x, self.y, self.z, self.time, missing_info = fill_missing_data(
+            x=self.x, y=self.y, z=self.z, time=self.time, missing_data_value=self.missing_data_value)
 
-            f_interp = interpolate.interp1d(self.time[not_missing_ind], self.x[not_missing_ind], bounds_error=False,
-                                            fill_value=(np.NaN, np.NaN))
-            self.x = f_interp(self.time)
-
-            f_interp = interpolate.interp1d(self.time[not_missing_ind], self.y[not_missing_ind], bounds_error=False,
-                                            fill_value=(np.NaN, np.NaN))
-            self.y = f_interp(self.time)
-
-            f_interp = interpolate.interp1d(self.time[not_missing_ind], self.z[not_missing_ind], bounds_error=False,
-                                            fill_value=(np.NaN, np.NaN))
-            self.z = f_interp(self.time)
-
-            ind_delete = np.where(np.isnan(self.x))[0]
-            self.x = np.delete(self.x, ind_delete)
-            self.y = np.delete(self.y, ind_delete)
-            self.z = np.delete(self.z, ind_delete)
-            self.time = np.delete(self.time, ind_delete)
-            self.n_frames = len(self.x)
-
-            return True, len(missing_ind), missing_ind
-        else:
-            return False, 0, []
-
-    def low_butter_scipy(self, signal, order=2):
-        """
-        Direct usage of the low-pass Butterworth Filter using library from SciPy.
-        :param signal: 1D data to be filtered
-        :param order: butterworth order
-        :return: filtered signal
-        """
-        Wn = self.fc / (self.fs / 2)
-        poly = butter(order, Wn, btype='lowpass', output='ba')  # returns numerator [0] and denominator [1] polynomials
-        return filtfilt(poly[0], poly[1], signal.copy())
-
-    @staticmethod
-    def cent_diff(time, signal):
-        """ Central difference method to find derivatives. """
-        n_frames = len(time)
-        der = np.zeros(n_frames, dtype=float)
-
-        der[0] = (signal[1] - signal[0]) / (time[1] - time[0])
-        der[-1] = (signal[-1] - signal[-2]) / (time[-1] - time[-2])
-
-        for i_frame in np.arange(1, n_frames - 1):
-            der[i_frame] = (signal[i_frame + 1] - signal[i_frame - 1]) / (
-                    time[i_frame + 1] - time[i_frame - 1])
-
-        return der
-
-    @staticmethod
-    def b_spline_fit_1d(time_vec, coord, n_fit, smooth=0., full_output=False):
-        tck = interpolate.splrep(time_vec, coord,
-                                 s=smooth,  # smoothing factor
-                                 k=3,  # degree of the spline fit. Scipy recommends using cubic splines.
-                                 )
-        time_fit = np.linspace(np.min(time_vec), np.max(time_vec), n_fit)
-        spline = interpolate.BSpline(tck[0], tck[1], tck[2])
-        if full_output:
-            return spline(time_fit), time_fit
-        else:
-            return spline(time_fit)
+        return missing_info['contain_missing'], missing_info['n_missing'], missing_info['missing_ind']
 
     def debug_plots(self, fig=None, axs=None):
         """ Create a debug plot that shows displacement, velocity, acceleration, and XY trajectory"""
@@ -494,36 +459,36 @@ class Trajectory:
         axs[0].plot(self.time_original, self.z_original, label='z', linestyle=':')
         axs[0].scatter(self.time_original[self.ind_missing], self.x_original[self.ind_missing], color='k')
 
-        axs[0].plot(self.time, self.x_smooth, label='x', c='r')
-        axs[0].plot(self.time, self.y_smooth, label='y', c='g')
-        axs[0].plot(self.time, self.z_smooth, label='z', c='b')
+        axs[0].plot(self.time, self.x, label='x', c='r')
+        axs[0].plot(self.time, self.y, label='y', c='g')
+        axs[0].plot(self.time, self.z, label='z', c='b')
 
-        for principal_dir in self.principal_dir:
+        for principal_dir in self.movement_plane_ax:
             axs[0].plot(self.time, np.ones((len(self.time), 1)) * self.start_pos[principal_dir],
                         c='c', linestyle=':', linewidth=3)
             axs[0].plot(self.time, np.ones((len(self.time), 1)) * self.end_pos[principal_dir],
                         c='m', linestyle=':', linewidth=3)
 
         axs[0].plot([self.start_time, self.start_time],
-                    [np.min([self.x_smooth, self.y_smooth, self.z_smooth]),
-                     np.max([self.x_smooth, self.y_smooth, self.z_smooth])], label='start', c='c')
+                    [np.min([self.x, self.y, self.z]),
+                     np.max([self.x, self.y, self.z])], label='start', c='c')
         axs[0].plot([self.end_time, self.end_time],
-                    [np.min([self.x_smooth, self.y_smooth, self.z_smooth]),
-                     np.max([self.x_smooth, self.y_smooth, self.z_smooth])], label='end', c='m')
+                    [np.min([self.x, self.y, self.z]),
+                     np.max([self.x, self.y, self.z])], label='end', c='m')
         axs[0].set_xlabel('Time (seconds)')
         axs[0].set_ylabel('Displacement')
         # axs[0].set_title(f'{self.n_missing} missing data')
         # axs[0].legend()
 
-        axs[1].plot(self.time, self.x_vel_smooth, label='x', c='r')
-        axs[1].plot(self.time, self.y_vel_smooth, label='y', c='g')
-        axs[1].plot(self.time, self.z_vel_smooth, label='z', c='b')
+        axs[1].plot(self.time, self.x_vel, label='x', c='r')
+        axs[1].plot(self.time, self.y_vel, label='y', c='g')
+        axs[1].plot(self.time, self.z_vel, label='z', c='b')
         axs[1].plot([self.start_time, self.start_time],
-                    [np.min([self.x_vel_smooth, self.y_vel_smooth, self.z_vel_smooth]),
-                     np.max([self.x_vel_smooth, self.y_vel_smooth, self.z_vel_smooth])], label='start', c='c')
+                    [np.min([self.x, self.y, self.z]),
+                     np.max([self.x, self.y, self.z])], label='start', c='c')
         axs[1].plot([self.end_time, self.end_time],
-                    [np.min([self.x_vel_smooth, self.y_vel_smooth, self.z_vel_smooth]),
-                     np.max([self.x_vel_smooth, self.y_vel_smooth, self.z_vel_smooth])], label='end', c='m')
+                    [np.min([self.x, self.y, self.z]),
+                     np.max([self.x, self.y, self.z])], label='end', c='m')
 
         axs[1].set_xlabel('Time (seconds)')
         axs[1].set_ylabel('Velocity')
@@ -538,9 +503,9 @@ class Trajectory:
             fig, axs = plt.subplots(1, 1)
             # plt.tight_layout()
 
-        axs.plot(self.time, self.x_smooth, label='x', linewidth=3, c='c')
-        axs.plot(self.time, self.y_smooth, label='y', linewidth=3, c='m')
-        axs.plot(self.time, self.z_smooth, label='z', linewidth=3, c='y')
+        axs.plot(self.time, self.x, label='x', linewidth=3, c='c')
+        axs.plot(self.time, self.y, label='y', linewidth=3, c='m')
+        axs.plot(self.time, self.z, label='z', linewidth=3, c='y')
 
         # axs.plot(self.time_original, self.x_original, label='x', linewidth=3, linestyle=':', c='k')
         # axs.plot(self.time_original, self.y_original, label='y', linewidth=3, linestyle=':', c='k')
@@ -548,12 +513,12 @@ class Trajectory:
         # axs.scatter(self.time_original[self.ind_missing], self.x_original[self.ind_missing], color='k')
 
         axs.plot([self.start_time, self.start_time],
-                 [np.min([self.x_smooth, self.y_smooth, self.z_smooth]),
-                  np.max([self.x_smooth, self.y_smooth, self.z_smooth])],
+                 [np.min([self.x, self.y, self.z]),
+                  np.max([self.x, self.y, self.z])],
                  label='Movement Start', color='g', linewidth=4, linestyle=':')
         axs.plot([self.end_time, self.end_time],
-                 [np.min([self.x_smooth, self.y_smooth, self.z_smooth]),
-                  np.max([self.x_smooth, self.y_smooth, self.z_smooth])],
+                 [np.min([self.x, self.y, self.z]),
+                  np.max([self.x, self.y, self.z])],
                  label='Movement End', color='r', linewidth=4, linestyle=':')
         axs.set_xlabel('Time (s)', fontdict={'fontsize': 16})
         axs.set_ylabel('Displacement (mm)', fontdict={'fontsize': 16})
@@ -634,17 +599,17 @@ class Trajectory:
             return ax, line
 
     @property
-    def principal_dir(self):
-        return self._principal_dir
+    def movement_plane_ax(self):
+        return self._movement_plane
 
-    @principal_dir.setter
-    def principal_dir(self, value):
+    @movement_plane_ax.setter
+    def movement_plane_ax(self, value):
         if value == 'xy':
-            self._principal_dir = [0, 1]
+            self._movement_plane = [0, 1]
         elif value == 'xz':
-            self._principal_dir = [0, 2]
+            self._movement_plane = [0, 2]
         elif value == 'yz':
-            self._principal_dir = [1, 2]
+            self._movement_plane = [1, 2]
         else:
             raise ValueError('Invalid principal directions! Please use the following: '
                              'xy, xz, or yz')
@@ -665,7 +630,7 @@ class Trajectory:
             raise ValueError('Invalid primary directions! Please use the following: '
                              'x, y, or z')
 
-        self.secondary_dir = list(set(self.principal_dir) - {self.primary_dir})[0]
+        self.secondary_dir = list(set(self.movement_plane_ax) - {self.primary_dir})[0]
 
     @property
     def ground_dir(self):

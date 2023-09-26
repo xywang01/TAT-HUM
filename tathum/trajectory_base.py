@@ -36,19 +36,38 @@ class TrajectoryBase(ABC):
         self.movement_selection_method = movement_selection_method
         self.movement_selection_sign = movement_selection_sign
         self.start_time, self.end_time, self.movement_ind = np.nan, np.nan, np.nan
+        self.n_frames = np.nan
+        self.movement_displacement, self.movement_velocity = np.nan, np.nan
 
     @property
-    @abstractmethod
     def n_frames(self):
-        """
-        Number of frames in the trajectory.
-        """
-        pass
+        return self._n_frames
 
     @n_frames.setter
-    @abstractmethod
     def n_frames(self, value):
-        pass
+        self._n_frames = value
+
+    @property
+    def movement_velocity(self):
+        """
+        The velocity coordinate used to determine the movement boundaries.
+        """
+        return self._movement_velocity
+
+    @movement_velocity.setter
+    def movement_velocity(self, value):
+        self._movement_velocity = value
+
+    @property
+    def movement_displacement(self):
+        """
+        The displacement coordinate used to determine the movement boundaries.
+        """
+        return self._movement_displacement
+
+    @movement_displacement.setter
+    def movement_displacement(self, value):
+        self._movement_displacement = value
 
     def preprocess(self, preprocess_var: str, preprocess_tuple: tuple):
         """
@@ -70,39 +89,6 @@ class TrajectoryBase(ABC):
         :param preprocess: The preprocess to be applied
         :return: The preprocess function and the relevant input
         """
-        pass
-
-    @property
-    @abstractmethod
-    def movement_velocity(self):
-        """
-        Class property used in compute_movement_boundaries().
-
-        Derives the velocity, either along a single axis or the resultant velocity, that will be used to determine
-        the movement boundaries. This need to be implemented in the concrete class depending on the trajectory's
-        dimensions (2D or 3D).
-        """
-        pass
-
-    @movement_velocity.setter
-    @abstractmethod
-    def movement_velocity(self, value):
-        pass
-
-    @property
-    @abstractmethod
-    def movement_displacement(self):
-        """
-        Class property used in compute_movement_boundaries().
-
-        Derives the displacement, either along a single axis or the resultant displacement, that will be used to
-        automatically distinguish valid from invalid movements. This need to be implemented in the concrete class.
-        """
-        pass
-
-    @movement_displacement.setter
-    @abstractmethod
-    def movement_displacement(self, value):
         pass
 
     @abstractmethod
@@ -197,6 +183,18 @@ class TrajectoryBase(ABC):
             return False
         else:
             return True
+
+    @staticmethod
+    def find_preprocess_order(preprocess_var: str):
+        if preprocess_var == 'displacement':
+            return 1
+        elif preprocess_var == 'velocity':
+            return 2
+        elif preprocess_var == 'acceleration':
+            return 3
+        else:
+            raise ValueError('The preprocess variable has to be either displacement, velocity, or acceleration!')
+
 
 
 
