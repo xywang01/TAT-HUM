@@ -16,8 +16,8 @@ from scipy.spatial.transform import Rotation
 from skspatial.objects import Plane, Points, Vector
 from pytransform3d.rotations import matrix_from_axis_angle
 import matplotlib.pyplot as plt
-from trajectory_base import TrajectoryBase
-from functions import Preprocesses, cent_diff, low_butter, fill_missing_data, find_optimal_cutoff_frequency
+from .trajectory_base import TrajectoryBase
+from .functions import Preprocesses, cent_diff, low_butter, fill_missing_data, find_optimal_cutoff_frequency
 
 class Trajectory(TrajectoryBase):
     """
@@ -148,17 +148,6 @@ class Trajectory(TrajectoryBase):
                     raise ValueError('Invalid movement_selection_dir! Please use the following: x, y, or z')
 
         self.contain_movement = True  # whether there was actual movement
-
-        # set the time stamps. If time stamps are not supplied, generate evenly spaced time stamps based on sampling
-        # frequency and number of frames.
-        if time is not None:
-            self.time_original = time
-            self.time = time
-            if len(self.time) != self.n_frames:
-                raise ValueError('The size of the input time stamps is not the same as the size of the coordinates!')
-        else:
-            self.time = np.linspace(0, self.n_frames * 1 / self.fs, num=self.n_frames, endpoint=False)
-            self.time_original = self.time.copy()
 
         # eliminate missing data; need to do it before the transformation
         self.contain_missing, self.n_missing, self.ind_missing = self.missing_data()
@@ -445,7 +434,7 @@ class Trajectory(TrajectoryBase):
         """
         self.x, self.y, self.z, self.time, missing_info = fill_missing_data(
             x=self.x, y=self.y, z=self.z, time=self.time, missing_data_value=self.missing_data_value)
-
+        self.n_frames = self.validate_size()  # remember to update n_frames
         return missing_info['contain_missing'], missing_info['n_missing'], missing_info['missing_ind']
 
     def debug_plots(self, fig=None, axs=None):

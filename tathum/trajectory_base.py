@@ -36,8 +36,8 @@ class TrajectoryBase(ABC):
         self.movement_selection_method = movement_selection_method
         self.movement_selection_sign = movement_selection_sign
         self.start_time, self.end_time, self.movement_ind = np.nan, np.nan, np.nan
-        self.n_frames = np.nan
         self.movement_displacement, self.movement_velocity = np.nan, np.nan
+        self.contain_movement = False
 
     @property
     def n_frames(self):
@@ -195,10 +195,14 @@ class TrajectoryBase(ABC):
         else:
             raise ValueError('The preprocess variable has to be either displacement, velocity, or acceleration!')
 
-
-
-
-
+    def display_results(self):
+        if self.contain_movement:
+            print(f'This trial does contain movement! \n'
+                  f'The movement starts at (i.e., reaction time) {self.start_time:.2f} s and ends at {self.end_time:.2f} s. \n'
+                  f'The movement duration is {self.end_time - self.start_time:.2f} s. \n'
+                  '----------------------------------------------------------------------------------------------------')
+        else:
+            print('This trial does not contain any detectable movements!')
 
 
 #

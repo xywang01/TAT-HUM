@@ -113,16 +113,17 @@ def fill_missing_data(x: np.ndarray,
                                         fill_value=(np.NaN, np.NaN))
         y = f_interp(time)
 
-        ind_delete = np.where(np.isnan(x))[0]
-        x = np.delete(x, ind_delete)
-        y = np.delete(y, ind_delete)
-        time = np.delete(time, ind_delete)
-
         if z is not None:
             f_interp = interpolate.interp1d(time[not_missing_ind], z[not_missing_ind], bounds_error=False,
                                             fill_value=(np.NaN, np.NaN))
             z = f_interp(time)
+
+        ind_delete = np.where(np.isnan(x))[0]
+        x = np.delete(x, ind_delete)
+        y = np.delete(y, ind_delete)
+        if z is not None:
             z = np.delete(z, ind_delete)
+        time = np.delete(time, ind_delete)
 
         missing_info = {
             'contain_missing': True,

@@ -217,6 +217,7 @@ class Trajectory2D(TrajectoryBase):
         self.x, self.y, self.time, missing_info = fill_missing_data(
             x=self.x, y=self.y, time=self.time, missing_data_value=self.missing_data_value,
         )
+        self.n_frames = self.validate_size()  # remember to update n_frames
         return missing_info['contain_missing'], missing_info['n_missing'], missing_info['missing_ind']
 
     @staticmethod
