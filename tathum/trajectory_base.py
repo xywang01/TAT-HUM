@@ -36,6 +36,7 @@ class TrajectoryBase(ABC):
         self.movement_selection_method = movement_selection_method
         self.movement_selection_sign = movement_selection_sign
         self.start_time, self.end_time, self.movement_ind = np.nan, np.nan, np.nan
+        self.start_pos, self.end_pos = np.nan, np.nan
         self.movement_displacement, self.movement_velocity = np.nan, np.nan
         self.contain_movement = False
 
@@ -198,8 +199,8 @@ class TrajectoryBase(ABC):
     def display_results(self):
         if self.contain_movement:
             print(f'This trial does contain movement! \n'
-                  f'The movement starts at (i.e., reaction time) {self.start_time:.2f} s and ends at {self.end_time:.2f} s. \n'
-                  f'The movement duration is {self.end_time - self.start_time:.2f} s. \n'
+                  f'Reaction time (RT) is {self.start_time:.2f}; Movement time (MT) is {self.end_time - self.start_time:.2f} s. \n'
+                  f'Movement distance is {np.linalg.norm(self.end_pos - self.start_pos):.2f} mm. \n'
                   '----------------------------------------------------------------------------------------------------')
         else:
             print('This trial does not contain any detectable movements!')
