@@ -150,7 +150,7 @@ class Trajectory(TrajectoryBase):
         self.contain_movement = True  # whether there was actual movement
 
         # eliminate missing data; need to do it before the transformation
-        self.contain_missing, self.n_missing, self.ind_missing = self.missing_data()
+        self.contain_missing, _, self.ind_missing = self.missing_data()
 
         # if the cutoff frequency is not specified, then it will be computed automatically
         if self.fc is None:
@@ -175,6 +175,12 @@ class Trajectory(TrajectoryBase):
         self.contain_movement = self.validate_movement()
 
         if self.contain_movement:
+            # check if the missing data are in the movement segment
+            if self.contain_missing:
+                self.missing_ind = [i for i, value in enumerate(self.ind_missing)
+                                    if self.movement_ind[0] <= value <= self.movement_ind[-1]]
+                self.n_missing = len(self.missing_ind)
+
             self.rt = self.start_time
             self.mt = self.end_time - self.start_time
             self.start_pos, self.end_pos = self.find_start_and_end_pos(time_cutoff=movement_pos_time_cutoff)
@@ -202,6 +208,8 @@ class Trajectory(TrajectoryBase):
         else:
             # in case the trajectory does not satisfy the movement initiation/termination criteria, in cases such as
             # when the participant number moved during the data collection period
+            self.contain_missing = None
+            self.n_missing = None
             self.rt = None
             self.mt = None
             self.start_pos, self.end_pos = None, None
