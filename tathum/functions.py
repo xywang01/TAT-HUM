@@ -274,6 +274,38 @@ def compute_transformation_3d(surface_points_x: np.ndarray,
         else:
             raise ValueError('the axis has to be "x", "y", or "z"!')
 
+    def rotate_vec_to_target(_vec, _target):
+        # Normalize the input normal vector
+        _vec = _vec / np.linalg.norm(_vec)
+
+        # Calculate the axis of rotation (cross product between normal and target)
+        axis = np.cross(_vec, _target)
+
+        # Calculate the cosine of the angle between the two vectors
+        cos_angle = np.dot(_vec, _target)
+
+        # Calculate the skew-symmetric cross-product matrix
+        cross_product_matrix = np.array([
+            [0, -axis[2], axis[1]],
+            [axis[2], 0, -axis[0]],
+            [-axis[1], axis[0], 0]
+        ])
+
+        # Create the rotation matrix using the Rodrigues' formula
+        rotation_matrix = np.identity(3) + cross_product_matrix + np.dot(cross_product_matrix, cross_product_matrix) * (
+                    1 - cos_angle) / (np.linalg.norm(axis) ** 2)
+
+        return rotation_matrix
+
+    def project_vector_onto_plane(_vec, _plane_normal):
+        # Normalize the plane normal vector
+        _plane_normal = _plane_normal / np.linalg.norm(_plane_normal)
+
+        # Calculate the projection of the vector onto the plane
+        projection = _vec - np.dot(_vec, _plane_normal) * _plane_normal
+
+        return projection
+
     primary_norm, _ = find_unit_ax(primary_ax)
     secondary_norm, _ = find_unit_ax(secondary_ax)
     horizontal_norm, horizontal_ind = find_unit_ax(horizontal_norm)
@@ -292,33 +324,17 @@ def compute_transformation_3d(surface_points_x: np.ndarray,
     surface_norm = Vector(surface_plane.cartesian()[:3])
     surface_norm = surface_norm / np.linalg.norm(surface_norm)
 
-    if surface_norm[horizontal_ind] < 0:
-        surface_norm *= -1
-
     # project the current surface normal to the horizontal plane
-    screen_norm_ground = surface_norm - horizontal_norm.project_vector(surface_norm)
-    screen_norm_ground = screen_norm_ground / np.linalg.norm(screen_norm_ground)
+    screen_norm_ground = project_vector_onto_plane(surface_norm, horizontal_norm)
 
-    # find the angle between the projected norm and the primary direction - this is to align the screen's primary
-    # direction with the primary direction in the Cartesian coordinate
-    angle = screen_norm_ground.angle_between(primary_norm)
+    # rotation to transform the surface normal to the horizontal plane
+    rotation_horizontal = Rotation.from_matrix(rotate_vec_to_target(surface_norm, horizontal_norm))
 
-    # construct the rotation matrix and rotate the surface normal
-    rotmat = matrix_from_axis_angle(np.hstack((horizontal_norm, (angle,))))
-    rotation_to_align = Rotation.from_matrix(rotmat)
-    screen_norm_rot = Vector(rotation_to_align.apply(surface_norm))
+    # rotation to align the surface orientation to the primary axis
+    rotation_primary = Rotation.from_matrix(rotate_vec_to_target(screen_norm_ground, primary_norm))
 
-    # after the screen is aligned with the primary axis, we can rotate it around the secondary axis to make the
-    # screen surface horizontal
-    angle = screen_norm_rot.angle_between(horizontal_norm)
-    angle = np.pi - angle
-
-    # axis is around the secondary direction
-    rotmat = matrix_from_axis_angle(np.hstack((secondary_norm, (angle,))))
-    rotation_to_ground = Rotation.from_matrix(rotmat)
-
-    # the complete transformation - need to rotate to align first, then rotate to ground
-    rotation = rotation_to_ground * rotation_to_align
+    # combine the two rotations
+    rotation = rotation_primary * rotation_horizontal
 
     # rotate the surface points to transform them back to horizontal
     surface_points_rot = Points(rotation.apply(surface_points)) + surface_center
