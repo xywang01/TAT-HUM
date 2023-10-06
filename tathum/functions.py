@@ -290,15 +290,18 @@ def compute_transformation_3d(surface_points_x: np.ndarray,
     # find the best fitting plane and its surface normal
     surface_plane = Plane.best_fit(surface_points)
     surface_norm = Vector(surface_plane.cartesian()[:3])
+    surface_norm = surface_norm / np.linalg.norm(surface_norm)
+
+    if surface_norm[horizontal_ind] < 0:
+        surface_norm *= -1
 
     # project the current surface normal to the horizontal plane
     screen_norm_ground = surface_norm - horizontal_norm.project_vector(surface_norm)
+    screen_norm_ground = screen_norm_ground / np.linalg.norm(screen_norm_ground)
 
     # find the angle between the projected norm and the primary direction - this is to align the screen's primary
     # direction with the primary direction in the Cartesian coordinate
     angle = screen_norm_ground.angle_between(primary_norm)
-    # make sure the angle is less than 90°
-    angle = np.pi - angle if np.abs(angle) > np.pi / 2 else angle
 
     # construct the rotation matrix and rotate the surface normal
     rotmat = matrix_from_axis_angle(np.hstack((horizontal_norm, (angle,))))
@@ -308,6 +311,7 @@ def compute_transformation_3d(surface_points_x: np.ndarray,
     # after the screen is aligned with the primary axis, we can rotate it around the secondary axis to make the
     # screen surface horizontal
     angle = screen_norm_rot.angle_between(horizontal_norm)
+    angle = np.pi - angle
 
     # axis is around the secondary direction
     rotmat = matrix_from_axis_angle(np.hstack((secondary_norm, (angle,))))

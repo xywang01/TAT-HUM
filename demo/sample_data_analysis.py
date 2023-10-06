@@ -33,8 +33,8 @@ trajectory_path = '~/Downloads/data/trajectory_data'  # individual trajectory fi
 
 # booleans to determine whether to visualize 3D calibration results. Setting up a boolean controller at the beginning
 # of the analysis script allows one to easily toggle different functionalities of the analysis using comment/uncomment
-plot_3d_calibration_check = True
-# plot_3d_calibration_check = False
+# plot_3d_calibration_check = True
+plot_3d_calibration_check = False
 
 # max number of missing trials before going to visual inspection
 n_missing_max = 15
@@ -49,8 +49,8 @@ target_location_2d = (
     [140., 0., -np.sqrt(220. ** 2 - 140. ** 2)],)
 
 # a list of participants id's
-# par_id_all = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
-par_id_all = (2, )
+par_id_all = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
+# par_id_all = (3, )
 
 # % process screen calibration data using custom function
 
@@ -271,9 +271,9 @@ for par_id_ind, par_id in enumerate(par_id_all):
                         # ax_3d.plot(raw_data.x - screen_center[0],
                         #            raw_data.y - screen_center[1],
                         #            raw_data.z - screen_center[2])
-                        # ax_3d.scatter(end_points[:, 0],
-                        #               end_points[:, 1],
-                        #               end_points[:, 2])
+                        ax_3d.scatter(end_points[:, 0],
+                                      end_points[:, 1],
+                                      end_points[:, 2], marker='x', color='black')
                         ax_3d.set_xlabel('x')
                         ax_3d.set_ylabel('y')
                         ax_3d.set_zlabel('z')
@@ -355,7 +355,7 @@ output_df['rt'] = output_df['rt'] * 1000
 output_df['mt'] = output_df['mt'] * 1000
 
 output_df['keep_both'] = output_df['keep_trial'] & output_df['keep_trajectory']
-# output_df.to_csv(output_save_name)
+output_df.to_csv(output_save_name)
 
 # %% analyze trajectory congruency area
 
