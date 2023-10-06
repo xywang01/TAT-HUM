@@ -143,10 +143,16 @@ def fill_missing_data(x: np.ndarray,
             z = np.delete(z, ind_delete)
         time = np.delete(time, ind_delete)
 
+        # identify the consecutive missing data points
+        missing_ind_segments = consecutive(missing_ind)
+        n_missing_segments = [len(seg) for seg in missing_ind_segments]
+
         missing_info = {
             'contain_missing': True,
             'n_missing': len(missing_ind),
-            'missing_ind': missing_ind
+            'missing_ind': missing_ind,
+            'missing_ind_segments': missing_ind_segments,
+            'n_missing_segments': n_missing_segments
         }
 
         if z is None:
@@ -157,7 +163,9 @@ def fill_missing_data(x: np.ndarray,
         missing_info = {
             'contain_missing': False,
             'n_missing': 0,
-            'missing_ind': []
+            'missing_ind': [],
+            'missing_ind_segments': [],
+            'n_missing_segments': []
         }
 
         if z is None:

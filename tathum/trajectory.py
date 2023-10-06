@@ -151,7 +151,7 @@ class Trajectory(TrajectoryBase):
         self.contain_movement = True  # whether there was actual movement
 
         # eliminate missing data; need to do it before the transformation
-        self.contain_missing, self.n_missing, self.ind_missing = self.missing_data()
+        self.contain_missing, self.n_missing, self.ind_missing, self.missing_segments, self.n_missing_segments = self.missing_data()
 
         # if the cutoff frequency is not specified, then it will be computed automatically
         if self.fc is None:
@@ -182,6 +182,14 @@ class Trajectory(TrajectoryBase):
         if self.contain_movement:
             # check if the missing data are in the movement segment
             if self.contain_missing:
+                # check if any of the missing segments are in the movement segment
+                self.missing_segments_movement = []
+                for seg in self.missing_segments:
+                    if (self.movement_ind[0] <= seg[0] <= self.movement_ind[-1]) & \
+                            (self.movement_ind[0] <= seg[-1] <= self.movement_ind[-1]):
+                        self.missing_segments_movement.append(seg)
+                self.n_missing_segments_movement = [len(seg) for seg in self.missing_segments_movement]
+
                 self.ind_missing_movement = [i for i, value in enumerate(self.ind_missing)
                                              if self.movement_ind[0] <= value <= self.movement_ind[-1]]
                 self.n_missing_movement = len(self.ind_missing_movement)
@@ -424,7 +432,7 @@ class Trajectory(TrajectoryBase):
         self.x, self.y, self.z, self.time, missing_info = fill_missing_data(
             x=self.x, y=self.y, z=self.z, time=self.time, missing_data_value=self.missing_data_value)
         self.n_frames = self.validate_size()  # remember to update n_frames
-        return missing_info['contain_missing'], missing_info['n_missing'], missing_info['missing_ind']
+        return missing_info['contain_missing'], missing_info['n_missing'], missing_info['missing_ind'], missing_info['missing_ind_segments'], missing_info['n_missing_segments']
 
     def debug_plots(self, fig=None, axs=None):
         """ Create a debug plot that shows displacement, velocity, acceleration, and XY trajectory"""
@@ -440,6 +448,14 @@ class Trajectory(TrajectoryBase):
         axs[0].plot(self.time, self.x, label='x', c='r')
         axs[0].plot(self.time, self.y, label='y', c='g')
         axs[0].plot(self.time, self.z, label='z', c='b')
+
+        if self.contain_missing:
+            for i_seg, seg in enumerate(self.missing_segments_movement):
+                n_missing = self.n_missing_segments_movement[i_seg]
+                seg_mid = int(np.median(seg) - 1)
+
+                axs[0].text(self.time[seg_mid], np.min([self.x_original, self.y_original, self.z_original]),
+                            f'{n_missing}', fontsize=12,)
 
         for principal_dir in self.movement_plane_ax:
             axs[0].plot(self.time, np.ones((len(self.time), 1)) * self.start_pos[principal_dir],
@@ -462,16 +478,14 @@ class Trajectory(TrajectoryBase):
         axs[1].plot(self.time, self.y_vel, label='y', c='g')
         axs[1].plot(self.time, self.z_vel, label='z', c='b')
         axs[1].plot([self.start_time, self.start_time],
-                    [np.min([self.x, self.y, self.z]),
-                     np.max([self.x, self.y, self.z])], label='start', c='c')
+                    [np.min([self.x_vel, self.y_vel, self.z_vel]),
+                     np.max([self.x_vel, self.y_vel, self.z_vel])], label='start', c='c')
         axs[1].plot([self.end_time, self.end_time],
-                    [np.min([self.x, self.y, self.z]),
-                     np.max([self.x, self.y, self.z])], label='end', c='m')
+                    [np.min([self.x_vel, self.y_vel, self.z_vel]),
+                     np.max([self.x_vel, self.y_vel, self.z_vel])], label='end', c='m')
 
         axs[1].set_xlabel('Time (seconds)')
         axs[1].set_ylabel('Velocity')
-        # axs[1].set_title('Velocity')
-        # axs[1].legend()
 
         plt.subplots_adjust(top=0.90, hspace=0.38, left=0.12, bottom=0.12)
         return fig, axs
