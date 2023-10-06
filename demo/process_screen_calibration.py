@@ -66,7 +66,7 @@ def process_screen_calibration(root, par_id_all, debug_plot=False, return_center
         center_all_par.append(end_points_center)
 
         # center the end points and convert them to Points, which provide accessible 3D geometrical manipulation
-        end_points_all = end_points_all - end_points_center
+        # end_points_all = end_points_all - end_points_center
         end_point = Points(end_points_all)
         end_point_all_par.append((par_id, end_point))
 
@@ -93,9 +93,9 @@ def process_screen_calibration(root, par_id_all, debug_plot=False, return_center
             ax = plt.axes(projection='3d')
 
             for trajectory in trajectories_all:
-                ax.plot(trajectory.x_movement_fit - end_points_center[0],
-                        trajectory.y_movement_fit - end_points_center[1],
-                        trajectory.z_movement_fit - end_points_center[2])
+                ax.plot(trajectory.x_fit - end_points_center[0],
+                        trajectory.y_fit - end_points_center[1],
+                        trajectory.z_fit - end_points_center[2])
 
             end_point.plot_3d(ax, c='b', s=10, depthshade=True)
             screen_plane.plot_3d(ax, alpha=.2,

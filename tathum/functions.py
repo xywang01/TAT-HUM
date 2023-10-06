@@ -78,6 +78,24 @@ def cent_diff(time: np.ndarray, signal: np.ndarray):
     return der
 
 
+# def find_missing_data(coord: np.ndarray,
+#                       missing_data_value=0.):
+#     """
+#     identify the missing data points using any coordinate
+#
+#     :param x: position along the x-axis
+#     :param y: position along the y-axis
+#     :param z: position along the z-axis
+#     :param missing_data_value: the default value for missing data points
+#     :return: x, y, z, missing_info = {contain_missing, n_missing, missing_ind}
+#     """
+#
+#     missing_ind = np.where(coord == missing_data_value)[0]
+#     not_missing_ind = np.where(coord != missing_data_value)[0]
+#     contain_missing = len(missing_ind) > 0
+#     return contain_missing, missing_ind, not_missing_ind
+
+
 def fill_missing_data(x: np.ndarray,
                       y: np.ndarray,
                       time: np.ndarray,
@@ -232,33 +250,33 @@ def compute_transformation_2d(start_pos: np.ndarray,
 def compute_transformation_3d(surface_points_x: np.ndarray,
                               surface_points_y: np.ndarray,
                               surface_points_z: np.ndarray,
-                              horizontal_norm_name: str = 'y',
-                              primary_ax_name: str = 'z',
-                              secondary_ax_name: str = 'x',
+                              horizontal_norm: Union[str, int] = 'y',
+                              primary_ax: Union[str, int] = 'z',
+                              secondary_ax: Union[str, int] = 'x',
                               full_output: bool = False) -> (Rotation, np.ndarray, dict):
     """
     :param surface_points_x: a vector specifying the x coordinates of points sampled from a surface
     :param surface_points_y: a vector specifying the y coordinates of points sampled from a surface
     :param surface_points_z: a vector specifying the z coordinates of points sampled from a surface
-    :param horizontal_norm_name: the name of the axis that is perpendicular to the horizontal plane
-    :param primary_ax_name: the name of the axis that corresponds to the primary movement direction
-    :param secondary_ax_name: the name of the axis that corresponds to the secondary movement direction
+    :param horizontal_norm: the name of the axis that is perpendicular to the horizontal plane
+    :param primary_ax: the name of the axis that corresponds to the primary movement direction
+    :param secondary_ax: the name of the axis that corresponds to the secondary movement direction
     :param full_output: whether to return full output, which includes the objects for the plane and corners
     :return:
     """
-    def find_unit_ax(ax: str):
-        if ax == 'x':
+    def find_unit_ax(ax: Union[str, int]):
+        if (ax == 'x') | (ax == 0):
             return Vector(vg.basis.x), 0
-        elif ax == 'y':
+        elif (ax == 'y') | (ax == 1):
             return Vector(vg.basis.y), 1
-        elif ax == 'z':
+        elif (ax == 'z') | (ax == 2):
             return Vector(vg.basis.z), 2
         else:
             raise ValueError('the axis has to be "x", "y", or "z"!')
 
-    primary_norm, _ = find_unit_ax(primary_ax_name)
-    secondary_norm, _ = find_unit_ax(secondary_ax_name)
-    horizontal_norm, horizontal_ind = find_unit_ax(horizontal_norm_name)
+    primary_norm, _ = find_unit_ax(primary_ax)
+    secondary_norm, _ = find_unit_ax(secondary_ax)
+    horizontal_norm, horizontal_ind = find_unit_ax(horizontal_norm)
 
     # concatenate the points
     surface_points = np.concatenate([np.expand_dims(surface_points_x, axis=1),
@@ -278,7 +296,7 @@ def compute_transformation_3d(surface_points_x: np.ndarray,
 
     # find the angle between the projected norm and the primary direction - this is to align the screen's primary
     # direction with the primary direction in the Cartesian coordinate
-    angle = -screen_norm_ground.angle_between(primary_norm)
+    angle = screen_norm_ground.angle_between(primary_norm)
     # make sure the angle is less than 90°
     angle = np.pi - angle if np.abs(angle) > np.pi / 2 else angle
 

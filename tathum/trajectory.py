@@ -7,7 +7,7 @@ Written by X.M. Wang.
 Wang, X.M., & Welsh, T.N. (2023). TAT-HUM: Trajectory Analysis Toolkit for Human Movements in Python.
 
 """
-import typing
+from typing import *
 
 from .coord import Coord
 
@@ -17,7 +17,8 @@ from skspatial.objects import Plane, Points, Vector
 from pytransform3d.rotations import matrix_from_axis_angle
 import matplotlib.pyplot as plt
 from .trajectory_base import TrajectoryBase
-from .functions import Preprocesses, cent_diff, low_butter, fill_missing_data, find_optimal_cutoff_frequency
+from .functions import Preprocesses, cent_diff, low_butter, fill_missing_data, find_optimal_cutoff_frequency, \
+    compute_transformation_3d
 
 class Trajectory(TrajectoryBase):
     """
@@ -33,13 +34,13 @@ class Trajectory(TrajectoryBase):
                  y: np.ndarray,
                  z: np.ndarray,
 
-                 displacement_preprocess: tuple[Preprocesses, ...] = (Preprocesses.LOW_BUTTER,),
-                 velocity_preprocess: tuple[Preprocesses, ...] = (Preprocesses.CENT_DIFF,),
-                 acceleration_preprocess: tuple[Preprocesses, ...] = (Preprocesses.CENT_DIFF,),
+                 displacement_preprocess: Tuple[Preprocesses, ...] = (Preprocesses.LOW_BUTTER,),
+                 velocity_preprocess: Tuple[Preprocesses, ...] = (Preprocesses.CENT_DIFF,),
+                 acceleration_preprocess: Tuple[Preprocesses, ...] = (Preprocesses.CENT_DIFF,),
 
                  transform_end_points=None,  # end points used for spatial transformation
 
-                 time: typing.Optional[np.ndarray] = None,
+                 time: Optional[np.ndarray] = None,
 
                  movement_plane_ax='xz',  # 2D plane that specifies the principal direction of the reach
                  primary_dir='z',  # the primary movement direction
@@ -49,9 +50,11 @@ class Trajectory(TrajectoryBase):
                  movement_selection_method='length',
                  movement_selection_sign=None,
 
+                 center_movement=True,  # whether to center the movement at the origin
+
                  unit: str = 'mm',
                  missing_data_value: float = 0.,
-                 fs: typing.Optional[int] = None, fc: typing.Optional[int] = None,
+                 fs: Optional[int] = None, fc: Optional[int] = None,
                  vel_threshold: float = 50.,
 
                  movement_pos_time_cutoff=0.2,  # used for finding the start and end positions
@@ -120,14 +123,12 @@ class Trajectory(TrajectoryBase):
             movement_selection_method=movement_selection_method, movement_selection_sign=movement_selection_sign,
             spline_order=spline_order, n_spline_fit=n_spline_fit, )
 
-        # fill in missing data before performing spatial transformation (otherwise the missing data value would be
-        # transformed as well)
-        self.contain_missing, self.n_missing, self.ind_missing = self.missing_data()
+        self.center_movement = center_movement
 
         self.movement_plane_ax = movement_plane_ax
+        self.secondary_dir = None  # placeholder - will be set automatically after setting primary dir
         self.primary_dir = primary_dir
-        self.ground_plane = None
-        self.secondary_dir = None
+        self.ground_plane = None  # placeholder - will be set automatically after setting ground_dir
         self.ground_dir = ground_dir
 
         self.movement_selection_method = movement_selection_method
@@ -150,7 +151,7 @@ class Trajectory(TrajectoryBase):
         self.contain_movement = True  # whether there was actual movement
 
         # eliminate missing data; need to do it before the transformation
-        self.contain_missing, _, self.ind_missing = self.missing_data()
+        self.contain_missing, self.n_missing, self.ind_missing = self.missing_data()
 
         # if the cutoff frequency is not specified, then it will be computed automatically
         if self.fc is None:
@@ -159,7 +160,11 @@ class Trajectory(TrajectoryBase):
         # transform the data if necessary
         self.transform_end_points = transform_end_points
         if self.transform_end_points is not None:
-            self.transform_mat, self.transform_origin = self.compute_transformation(self.transform_end_points)
+            self.transform_mat, self.transform_origin, transform_info = self.compute_transformation(
+                self.transform_end_points, full_output=True)
+            self.screen_plane = transform_info['screen_plane']
+            self.screen_corners_rot = transform_info['screen_corners_rot']
+            self.screen_plane_rot = transform_info['screen_plane_rot']
             self.x, self.y, self.z = self.transform_data(self.x, self.y, self.z)
             self.x_original, self.y_original, self.z_original = self.transform_data(
                 self.x_original, self.y_original, self.z_original)
@@ -177,9 +182,9 @@ class Trajectory(TrajectoryBase):
         if self.contain_movement:
             # check if the missing data are in the movement segment
             if self.contain_missing:
-                self.missing_ind = [i for i, value in enumerate(self.ind_missing)
-                                    if self.movement_ind[0] <= value <= self.movement_ind[-1]]
-                self.n_missing = len(self.missing_ind)
+                self.ind_missing_movement = [i for i, value in enumerate(self.ind_missing)
+                                             if self.movement_ind[0] <= value <= self.movement_ind[-1]]
+                self.n_missing_movement = len(self.ind_missing_movement)
 
             self.rt = self.start_time
             self.mt = self.end_time - self.start_time
@@ -195,6 +200,13 @@ class Trajectory(TrajectoryBase):
             self.x_acc_movement = self.x_vel[self.movement_ind]
             self.y_acc_movement = self.y_vel[self.movement_ind]
             self.z_acc_movement = self.z_vel[self.movement_ind]
+
+            if self.center_movement:
+                self.start_pos -= self.start_pos
+                self.end_pos -= self.start_pos
+                self.x_movement -= self.start_pos[0]
+                self.y_movement -= self.start_pos[1]
+                self.z_movement -= self.start_pos[2]
 
             self.time_fit, self.x_fit, self.x_spline = self.b_spline_fit_1d(self.time_movement, self.x_movement, self.n_spline_fit)
             _, self.y_fit, self.y_spline = self.b_spline_fit_1d(self.time_movement, self.y_movement, self.n_spline_fit)
@@ -331,54 +343,20 @@ class Trajectory(TrajectoryBase):
         :param full_output: whether to return full output, which includes the objects for the plane and corners
         :return:
         """
-        # center the corners
         screen_center = np.mean(screen_corners, axis=0)
-        screen_corners = screen_corners - screen_center
-
-        # find the surface normal
-        screen_plane = Plane.best_fit(screen_corners)
-        screen_norm = Vector(screen_plane.cartesian()[:3])
-        if screen_norm[self.ground_dir] < 0:
-            screen_norm = screen_norm * -1
-
-        # project the current screen normal to the ground plane
-        screen_norm_ground = self.ground_plane.project_vector(screen_norm)
-
-        # find the angle between the projected norm and the primary direction - this is to align the screen's primary
-        # direction with the primary direction in the Cartesian coordinate
-        primary_norm = np.zeros(3)
-        primary_norm[self.primary_dir] = 1
-        angle = screen_norm_ground.angle_between(primary_norm)
-        angle = np.pi - angle if angle > np.pi / 2 else angle
-
-        # construct the rotation matrix and rotate the screen normal
-        ground_norm = np.zeros(3)
-        ground_norm[self.ground_dir] = 1
-        rotmat = matrix_from_axis_angle(np.hstack((ground_norm, (angle,))))
-        rotation_to_align = Rotation.from_matrix(rotmat)
-        screen_norm_rot = Vector(rotation_to_align.apply(screen_norm))
-
-        # after the screen is aligned with the primary axis, we can rotate it around the secondary axis to make the
-        # screen surface horizontal
-        angle = -screen_norm_rot.angle_between(ground_norm)
-
-        # axis is around the secondary direction
-        secondary_norm = np.zeros(3)
-        secondary_norm[self.secondary_dir] = 1
-        rotmat = matrix_from_axis_angle(np.hstack((secondary_norm, (angle,))))
-        rotation_to_ground = Rotation.from_matrix(rotmat)
-
-        # the complete transformation - need to rotate to align first, then rotate to ground
-        rotation = rotation_to_ground * rotation_to_align
-
-        screen_corners_rot = Points(rotation.apply(screen_corners)) + screen_center
-        screen_plane_rot = Plane.best_fit(screen_corners_rot)
+        rotation, surface_center, transform_info = compute_transformation_3d(
+            screen_corners[:, 0], screen_corners[:, 1], screen_corners[:, 2],
+            horizontal_norm=self.ground_dir,
+            primary_ax=self.primary_dir,
+            secondary_ax=self.secondary_dir,
+            full_output=True,
+        )
 
         if full_output:
             return rotation, screen_center, {
-                'screen_plane': screen_plane,
-                'screen_corners_rot': screen_corners_rot,
-                'screen_plane_rot': screen_plane_rot,
+                'screen_plane': transform_info['surface_plane'],
+                'screen_corners_rot': transform_info['surface_points_rot'],
+                'screen_plane_rot': transform_info['surface_plane_rot'],
             }
         else:
             return rotation, screen_center
@@ -395,7 +373,7 @@ class Trajectory(TrajectoryBase):
                                 np.expand_dims(y, axis=1),
                                 np.expand_dims(z, axis=1)], axis=1)
         coord -= self.transform_origin
-        coord_rot = self.transform_mat.apply(coord)
+        coord_rot = self.transform_mat.apply(coord) + self.transform_origin
         return coord_rot[:, 0], coord_rot[:, 1], coord_rot[:, 2]
 
     def find_start_and_end_pos(self, time_cutoff):
@@ -430,6 +408,9 @@ class Trajectory(TrajectoryBase):
     def consecutive(data, step_size=1):
         """ splits the missing data indices into chunks"""
         return np.split(data, np.where(np.diff(data) != step_size)[0] + 1)
+
+    # def find_missing_data(self):
+    #     return find_missing_data(self.x, self.missing_data_value)
 
     def missing_data(self):
         """

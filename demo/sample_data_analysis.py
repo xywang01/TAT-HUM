@@ -17,14 +17,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # libraries from TAT-HUM to process trajectory data
-from tathum.functions import b_spline_fit_1d
+from tathum.functions import b_spline_fit_1d, Preprocesses
 from tathum.trajectory import Trajectory
 from tathum.trajectory_mean import TrajectoryMean
 
 # experiment-specific functions to process screen calibration
 from demo.process_screen_calibration import process_screen_calibration
 
-# %% analysis meta parameter setup
+# % analysis meta parameter setup
 
 # specify the data directories
 # NOTE: need to replace with the directories in which you store the data
@@ -33,8 +33,8 @@ trajectory_path = '~/Downloads/data/trajectory_data'  # individual trajectory fi
 
 # booleans to determine whether to visualize 3D calibration results. Setting up a boolean controller at the beginning
 # of the analysis script allows one to easily toggle different functionalities of the analysis using comment/uncomment
-# plot_3d_calibration_check = True
-plot_3d_calibration_check = False
+plot_3d_calibration_check = True
+# plot_3d_calibration_check = False
 
 # max number of missing trials before going to visual inspection
 n_missing_max = 15
@@ -49,14 +49,15 @@ target_location_2d = (
     [140., 0., -np.sqrt(220. ** 2 - 140. ** 2)],)
 
 # a list of participants id's
-par_id_all = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
+# par_id_all = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
+par_id_all = (2, )
 
-# %% process screen calibration data using custom function
+# % process screen calibration data using custom function
 
 calibration_data_all, calibration_center_all = process_screen_calibration(
     trajectory_path, par_id_all, debug_plot=False, return_center=True)
 
-# %% process trajectory data
+# % process trajectory data
 
 # save name for the processed data
 output_save_name = './demo/rt_mt_results.csv'
@@ -85,6 +86,7 @@ trajectory_ind = 0
 # a figure for visual inspection for missing data
 fig, axs = plt.subplots(2, 1)
 plt.tight_layout()
+plt.subplots_adjust(left=0.12, bottom=0.1, top=0.86, hspace=0.34)
 
 # a figure for visual inspection for all trajectories
 fig_traj, ax_traj = plt.subplots(1, 1)
@@ -97,6 +99,9 @@ for par_id_ind, par_id in enumerate(par_id_all):
     if plot_3d_calibration_check:
         fig_3d = plt.figure()
         ax_3d = plt.axes(projection='3d')
+        ax_3d.set_xlim(-200, 200)
+        ax_3d.set_ylim(-200, 200)
+        ax_3d.set_zlim(-100, 300)
 
     # extract relevant screen calibration data obtained from the custom calibration processing function
     _, end_points = calibration_data_all[par_id_ind]
@@ -211,9 +216,12 @@ for par_id_ind, par_id in enumerate(par_id_all):
 
                     # initialize a Trajectory object using this trial's trajectory data
                     trajectory = Trajectory(raw_data.x, raw_data.y, raw_data.z,
-                                            movement_plane_ax=movement_plane,
                                             time=raw_data.time, fs=250, fc=10,
-                                            transform_end_points=end_points)
+                                            movement_plane_ax=movement_plane,
+                                            transform_end_points=end_points,
+                                            displacement_preprocess=(Preprocesses.LOW_BUTTER,),
+                                            velocity_preprocess=(Preprocesses.CENT_DIFF,),
+                                            acceleration_preprocess=(Preprocesses.CENT_DIFF,),)
 
                     keep_trial = True
                     # determine whether to keep this trial based on the number of missing data due to marker occlusion
@@ -223,7 +231,10 @@ for par_id_ind, par_id in enumerate(par_id_all):
                         # create a debug plot to visually inspect the missing data. If the most of the missing data
                         # occurred outside the movement segment, one can opt to keep the trial.
                         trajectory.debug_plots(fig=fig, axs=axs)
-                        plt.suptitle(f'participant {par_id}, trial {trial_id}, n missing data = {trajectory.n_missing}')
+                        fig.suptitle(f'participant {par_id}, trial {trial_id} \n'
+                                     f'n missing total = {trajectory.n_missing}. '
+                                     f'n missing movement = {trajectory.n_missing_movement}.')
+
                         plt.pause(0.1)
                         response = input('keep entry. Enter if yes, "n" if no. ')
                         axs[0].cla()
@@ -241,23 +252,28 @@ for par_id_ind, par_id in enumerate(par_id_all):
                         trajectory_mean.add_trajectory(trajectory)
                         temp_row['mt'] = trajectory.mt
                         temp_row['rt'] = trajectory.rt
-                        temp_row['end_pos_norm_x'] = trajectory.end_pos_norm[0]
-                        temp_row['end_pos_norm_y'] = trajectory.end_pos_norm[1]
-                        temp_row['end_pos_norm_z'] = trajectory.end_pos_norm[2]
+                        temp_row['end_pos_norm_x'] = trajectory.end_pos[0]
+                        temp_row['end_pos_norm_y'] = trajectory.end_pos[1]
+                        temp_row['end_pos_norm_z'] = trajectory.end_pos[2]
                         # this is the Euclidean distance between the end point and the target
                         temp_row['end_dist_to_target_2d'] = np.sqrt(
-                            (trajectory.end_pos_norm[0] - target_location[0]) ** 2 +
-                            (trajectory.end_pos_norm[2] - target_location[2]) ** 2)
+                            (trajectory.end_pos[0] - target_location[0]) ** 2 +
+                            (trajectory.end_pos[2] - target_location[2]) ** 2)
 
                     # plot the 3D view of the original trajectories and the spatially transformed trajectories to make
                     # sure the spatial transformation is done properly - it's always good to visually check the
                     # operations
                     if plot_3d_calibration_check:
-                        ax_3d.plot(raw_data.x, raw_data.y, raw_data.z)
-                        ax_3d.plot(trajectory.x_movement_fit, trajectory.y_movement_fit, trajectory.z_movement_fit)
-                        ax_3d.scatter(end_points[:, 0] + screen_center[0],
-                                      end_points[:, 1] + screen_center[1],
-                                      end_points[:, 2] + screen_center[2])
+                        ax_3d.plot(trajectory.x_fit, trajectory.y_fit, trajectory.z_fit)
+                        ax_3d.scatter(trajectory.screen_corners_rot[:, 0],
+                                      trajectory.screen_corners_rot[:, 1],
+                                      trajectory.screen_corners_rot[:, 2])
+                        # ax_3d.plot(raw_data.x - screen_center[0],
+                        #            raw_data.y - screen_center[1],
+                        #            raw_data.z - screen_center[2])
+                        # ax_3d.scatter(end_points[:, 0],
+                        #               end_points[:, 1],
+                        #               end_points[:, 2])
                         ax_3d.set_xlabel('x')
                         ax_3d.set_ylabel('y')
                         ax_3d.set_zlabel('z')
@@ -339,7 +355,7 @@ output_df['rt'] = output_df['rt'] * 1000
 output_df['mt'] = output_df['mt'] * 1000
 
 output_df['keep_both'] = output_df['keep_trial'] & output_df['keep_trajectory']
-output_df.to_csv(output_save_name)
+# output_df.to_csv(output_save_name)
 
 # %% analyze trajectory congruency area
 
