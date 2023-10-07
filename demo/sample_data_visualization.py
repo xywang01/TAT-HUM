@@ -24,8 +24,8 @@ ax_tick_size = 14
 line_width = 3
 
 # toggle this to check which dependent variable to plot
-plot_dv = 'rt'
-# plot_dv = 'mt'
+# plot_dv = 'rt'
+plot_dv = 'mt'
 
 fig = plt.figure()
 ax = sns.lineplot(
@@ -48,21 +48,24 @@ ax.legend().set_title('')
 if plot_dv == 'rt':
     ax.set_ylabel('Reaction Time (ms)', fontsize=ax_label_size)
 
-    ax.text(63, 443, '***', fontsize=ax_label_size)
-    ax.text(1065, 372, '**', fontsize=ax_label_size)
+    ax.text(63, 454, '***', fontsize=ax_label_size)
+    ax.text(1066, 389, '**', fontsize=ax_label_size)
+
+    ax.set_ylim((340, 470))
 else:
+    ax.set_ylim((300, 400))
     ax.set_ylabel('Movement Time (ms)', fontsize=ax_label_size)
 
 ax.set_xlabel('SOA (ms)', fontsize=ax_label_size)
 ax.set_xticks([100, 350, 850, 1100])
 ax.set_xticklabels([100, 350, 850, 1100], fontsize=ax_tick_size)
-ax.set_ylim((330, 450))
+
 ax.set_yticklabels(ax.get_yticks().astype(int), fontsize=ax_tick_size)
 plt.legend(fontsize=ax_label_size)
 plt.subplots_adjust(bottom=0.13, left=0.16, top=0.95, right=0.95)
 plt.show()
 
-# fig.savefig(f'./demo/{plot_dv}.png')  # uncomment this to automatically save the figure
+fig.savefig(f'./demo/{plot_dv}.png')  # uncomment this to automatically save the figure
 
 # %% plot congruency area
 
@@ -86,6 +89,7 @@ g = sns.FacetGrid(
     col='soa',
     hue='soa',
     hue_kws=line_styles,
+    # row='par_id',
 
     margin_titles=True,
 )
@@ -113,12 +117,14 @@ for ax1 in g.axes:
         ax2.set_yticklabels(ax2.get_yticks().astype(int), fontsize=ax_tick_size)
         ax2.set_title(ax2.get_title().upper().replace('.0', ' ms'))
 
-g.axes[0, 3].text(56.5, -8, '*', fontsize=ax_label_size)
+g.axes[0, 1].text(37., -7.5, '*', fontsize=ax_label_size)
+g.axes[0, 3].text(37., -7.5, '*', fontsize=ax_label_size)
+g.axes[0, 3].text(56.5, -11, '*', fontsize=ax_label_size)
 g.axes[0, 3].text(75, -10, '**', fontsize=ax_label_size)
-g.axes[0, 3].text(93, -9, '***', fontsize=ax_label_size)
+g.axes[0, 3].text(93, -7, '***', fontsize=ax_label_size)
 
 g.set_xticklabels(x_tick_labels, fontsize=ax_tick_size)
 plt.subplots_adjust(left=0.09, wspace=0.18)
 plt.show()
 
-# g.fig.savefig('./demo/TrajectoryArea.png')  # uncomment this to automatically save the figure
+g.fig.savefig('./demo/TrajectoryArea.png')  # uncomment this to automatically save the figure
