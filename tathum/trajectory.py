@@ -224,12 +224,14 @@ class Trajectory(TrajectoryBase):
             self.time_fit, self.x_fit, self.x_spline = self.b_spline_fit_1d(self.time_movement, self.x_movement, self.n_spline_fit)
             _, self.y_fit, self.y_spline = self.b_spline_fit_1d(self.time_movement, self.y_movement, self.n_spline_fit)
             _, self.z_fit, self.z_spline = self.b_spline_fit_1d(self.time_movement, self.z_movement, self.n_spline_fit)
-            _, self.x_vel_fit, self.x_vel_spline = self.b_spline_fit_1d(self.time_movement, self.x_vel_movement, self.n_spline_fit)
-            _, self.y_vel_fit, self.y_vel_spline = self.b_spline_fit_1d(self.time_movement, self.y_vel_movement, self.n_spline_fit)
-            _, self.z_vel_fit, self.z_vel_spline = self.b_spline_fit_1d(self.time_movement, self.z_vel_movement, self.n_spline_fit)
-            _, self.x_acc_fit, self.x_acc_spline = self.b_spline_fit_1d(self.time_movement, self.x_acc_movement, self.n_spline_fit)
-            _, self.y_acc_fit, self.y_acc_spline = self.b_spline_fit_1d(self.time_movement, self.y_acc_movement, self.n_spline_fit)
-            _, self.z_acc_fit, self.z_acc_spline = self.b_spline_fit_1d(self.time_movement, self.z_acc_movement, self.n_spline_fit)
+
+            # instead of normalizing the velocity and accelerations, simply use cent_diff to directly compute them
+            self.x_vel_fit = cent_diff(self.time_movement, self.x_fit)
+            self.y_vel_fit = cent_diff(self.time_movement, self.y_fit)
+            self.z_vel_fit = cent_diff(self.time_movement, self.z_fit)
+            self.x_acc_fit = cent_diff(self.time_movement, self.x_vel_fit)
+            self.y_acc_fit = cent_diff(self.time_movement, self.y_vel_fit)
+            self.z_acc_fit = cent_diff(self.time_movement, self.z_vel_fit)
         else:
             # in case the trajectory does not satisfy the movement initiation/termination criteria, in cases such as
             # when the participant number moved during the data collection period
