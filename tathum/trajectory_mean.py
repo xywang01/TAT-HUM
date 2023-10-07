@@ -36,7 +36,7 @@ class TrajectoryMean:
         self.all_trajectories.append(traj)
 
     def compute_mean_trajectory(self,
-                                traj_names=('x_movement_fit', 'y_movement_fit', 'z_movement_fit'),
+                                traj_names=('x_fit', 'y_fit', 'z_fit'),
                                 post_script=''):
         for name in traj_names:
             coord_name = name[0]
@@ -68,7 +68,7 @@ class TrajectoryMean:
             self.all_trajectories.pop(ind)
 
     def debug_plots_trajectory(self, principal_dir='xz',
-                                      single_name_generic='_movement_fit',
+                                      single_name_generic='_fit',
                                       mean_name_generic='_mean',
                                       fig=None, ax=None):
         if ax is None:
@@ -79,12 +79,17 @@ class TrajectoryMean:
             plt_x = trajectory.__getattribute__(f'{principal_dir[0]}{single_name_generic}')
             plt_y = trajectory.__getattribute__(f'{principal_dir[1]}{single_name_generic}')
             n_plot = len(plt_x)
-            ax.plot(plt_x, plt_y, pickradius=5)
+            ax.plot(plt_x, plt_y, pickradius=5, alpha=.7)
             ax.text(plt_x[int(n_plot/2)], plt_y[int(n_plot/2)], str(ind))
 
-        ax.plot(self.__getattribute__(f'{principal_dir[0]}{mean_name_generic}'),
-                self.__getattribute__(f'{principal_dir[1]}{mean_name_generic}'),
-                linewidth=20, alpha=.5, color='g', pickradius=5)
+        mean_x = self.__getattribute__(f'{principal_dir[0]}{mean_name_generic}')
+        mean_y = self.__getattribute__(f'{principal_dir[1]}{mean_name_generic}')
+        ax.plot(mean_x, mean_y, linewidth=8, alpha=.5, color='b', pickradius=2)
+        ax.scatter(mean_x[0], mean_y[0], marker='o', color='g', s=100)
+        ax.text(mean_x[0], mean_y[0], 'START', color='g', fontsize=20)
+
+        ax.scatter(mean_x[-1], mean_y[-1], marker='o', color='r', s=100)
+        ax.text(mean_x[-1], mean_y[-1], 'END', color='r', fontsize=20)
 
         ax.set_xlabel('x displacement')
         ax.set_ylabel('y displacement')
