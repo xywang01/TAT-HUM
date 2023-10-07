@@ -181,18 +181,23 @@ class Trajectory(TrajectoryBase):
 
         if self.contain_movement:
             # check if the missing data are in the movement segment
+            self.missing_segments_movement = []
             if self.contain_missing:
-                # check if any of the missing segments are in the movement segment
-                self.missing_segments_movement = []
+                # check if any of the missing indices are in the movement segment
+                self.ind_missing_movement = [i for i, value in enumerate(self.ind_missing)
+                                             if self.movement_ind[0] <= value <= self.movement_ind[-1]]
+                self.n_missing_movement = len(self.ind_missing_movement)
+
+                # do the same for respective missing segments
                 for seg in self.missing_segments:
                     if (self.movement_ind[0] <= seg[0] <= self.movement_ind[-1]) & \
                             (self.movement_ind[0] <= seg[-1] <= self.movement_ind[-1]):
                         self.missing_segments_movement.append(seg)
-                self.n_missing_segments_movement = [len(seg) for seg in self.missing_segments_movement]
+            else:
+                self.ind_missing_movement = []
+                self.n_missing_movement = 0
 
-                self.ind_missing_movement = [i for i, value in enumerate(self.ind_missing)
-                                             if self.movement_ind[0] <= value <= self.movement_ind[-1]]
-                self.n_missing_movement = len(self.ind_missing_movement)
+            self.n_missing_segments_movement = np.array(len(seg) for seg in self.missing_segments_movement)
 
             self.rt = self.start_time
             self.mt = self.end_time - self.start_time
@@ -489,6 +494,14 @@ class Trajectory(TrajectoryBase):
 
         plt.subplots_adjust(top=0.90, hspace=0.38, left=0.12, bottom=0.12)
         return fig, axs
+
+    def display_missing_info(self):
+        if self.contain_missing:
+            print(f'This trial contains {self.n_missing} missing data points.\n'
+                  f'Among them, there are {len(self.missing_segments_movement)} segments occurred during the movement!\n'
+                  f'The size of the missing segments are: {self.n_missing_segments_movement}\n')
+        else:
+            print(f'This trial does not contain any missing data!')
 
     def demo_plots(self, fig=None, axs=None):
         if axs is None:
