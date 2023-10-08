@@ -3,6 +3,7 @@ from tathum.trajectory_base import TrajectoryBase
 from tathum.functions import *
 import typing
 import numpy as np
+import pandas as pd
 
 
 class Trajectory2D(TrajectoryBase):
@@ -105,12 +106,22 @@ class Trajectory2D(TrajectoryBase):
             self.x_acc_movement = self.x_acc[self.movement_ind]
             self.y_acc_movement = self.y_acc[self.movement_ind]
 
+            self.vel_movement = np.sqrt(self.x_vel_movement ** 2 + self.y_vel_movement ** 2)
+            peak_vel_idx = np.argmax(self.vel_movement)
+            self.peak_vel = self.vel_movement[peak_vel_idx]
+            self.time_after_peak_vel = self.time_movement[-1] - self.time_movement[peak_vel_idx]
+
+            self.acc_movement = np.sqrt(self.x_acc_movement ** 2 + self.y_acc_movement ** 2)
+            peak_acc_idx = np.argmax(self.acc_movement)
+            self.peak_acc = self.acc_movement[peak_acc_idx]
+            self.time_after_peak_acc = self.time_movement[-1] - self.time_movement[peak_acc_idx]
+
             self.time_fit, self.x_fit, self.x_spline = self.b_spline_fit_1d(self.time_movement, self.x_movement, self.n_spline_fit)
             _, self.y_fit, self.y_spline = self.b_spline_fit_1d(self.time_movement, self.y_movement, self.n_spline_fit)
-            _, self.x_vel_fit, self.x_vel_spline = self.b_spline_fit_1d(self.time_movement, self.x_vel_movement, self.n_spline_fit)
-            _, self.y_vel_fit, self.y_vel_spline = self.b_spline_fit_1d(self.time_movement, self.y_vel_movement, self.n_spline_fit)
-            _, self.x_acc_fit, self.x_acc_spline = self.b_spline_fit_1d(self.time_movement, self.x_acc_movement, self.n_spline_fit)
-            _, self.y_acc_fit, self.y_acc_spline = self.b_spline_fit_1d(self.time_movement, self.y_acc_movement, self.n_spline_fit)
+            self.x_vel_fit = cent_diff(self.time_fit, self.x_fit)
+            self.y_vel_fit = cent_diff(self.time_fit, self.y_fit)
+            self.x_acc_fit = cent_diff(self.time_fit, self.x_vel_fit)
+            self.y_acc_fit = cent_diff(self.time_fit, self.y_vel_fit)
         else:
             self.rt = None
             self.mt = None
@@ -209,6 +220,20 @@ class Trajectory2D(TrajectoryBase):
                                 np.expand_dims(y, axis=0)], axis=0)
         coord_rot = np.matmul(self.transform_mat, coord - self.transform_origin)  # + self.transform_origin - leaving this out so that the trajectory is centered at the origin
         return coord_rot[0], coord_rot[1]
+
+    def format_results(self):
+        return pd.DataFrame({
+            'contain_movement': self.contain_movement,
+            'fs': self.fs,
+            'fc': self.fc,
+            'rt': self.rt,
+            'mt': self.mt,
+            'movement_dist': np.linalg.norm(self.end_pos - self.start_pos),
+            'peak_vel': self.peak_vel,
+            'time_after_peak_vel': self.time_after_peak_vel,
+            'peak_acc': self.peak_acc,
+            'time_after_peak_acc': self.time_after_peak_acc,
+        }, index=[0])
 
     def missing_data(self):
         """

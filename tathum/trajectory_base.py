@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
 
+import pandas as pd
+
 # from .coord import Coord
 # from .functions import *
 from tathum.coord import Coord
@@ -196,51 +198,9 @@ class TrajectoryBase(ABC):
         else:
             raise ValueError('The preprocess variable has to be either displacement, velocity, or acceleration!')
 
-    def display_results(self):
-        if self.contain_movement:
-            print(f'This trial does contain movement! \n'
-                  f'Reaction time (RT) is {self.start_time:.2f}; Movement time (MT) is {self.end_time - self.start_time:.2f} s. \n'
-                  f'Movement distance is {np.linalg.norm(self.end_pos - self.start_pos):.2f} mm. \n'
-                  '----------------------------------------------------------------------------------------------------')
-        else:
-            print('This trial does not contain any detectable movements!')
-
-
-#
-# class TrajectoryTest(TrajectoryBase):
-#     def __init__(self, x, y, z):
-#         super().__init__()
-#         self.x = x
-#         self.y = y
-#         self.z = z
-#
-#         self.n_frames = self.validate_size()
-#
-#     @property
-#     def n_frames(self):
-#         return self._n_frames
-#
-#     @n_frames.setter
-#     def n_frames(self, value):
-#         self._n_frames = value
-#
-#     def movement_displacement(self):
-#         return self.x
-#
-#     def movement_velocity(self):
-#         return self.x
-#
-#     def compute_movement_boundaries(self):
-#         super().compute_movement_boundaries()
-#
-#
-# test = TrajectoryTest(x=np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], ),
-#                       y=np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], ),
-#                       z=np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], ))
-#
-# # test.compute_movement_boundaries()
-# print(test.n_frames)
-
-
-
-
+    @abstractmethod
+    def format_results(self):
+        """
+        Format the results into a Pandas DataFrame.
+        """
+        pass

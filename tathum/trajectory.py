@@ -9,6 +9,8 @@ Wang, X.M., & Welsh, T.N. (2023). TAT-HUM: Trajectory Analysis Toolkit for Human
 """
 from typing import *
 
+import pandas as pd
+
 from .coord import Coord
 
 import numpy as np
@@ -169,6 +171,7 @@ class Trajectory(TrajectoryBase):
             self.x_original, self.y_original, self.z_original = self.transform_data(
                 self.x_original, self.y_original, self.z_original)
 
+        # preprocess the data and obtain temporal derivatives
         self.preprocess('displacement', displacement_preprocess)
         self.preprocess('velocity', velocity_preprocess)
         self.preprocess('acceleration', acceleration_preprocess)
@@ -214,6 +217,16 @@ class Trajectory(TrajectoryBase):
             self.y_acc_movement = self.y_vel[self.movement_ind]
             self.z_acc_movement = self.z_vel[self.movement_ind]
 
+            self.vel_movement = np.sqrt(self.x_vel_movement ** 2 + self.y_vel_movement ** 2 + self.z_vel_movement ** 2)
+            peak_vel_idx = np.argmax(self.vel_movement)
+            self.peak_vel = self.vel_movement[peak_vel_idx]
+            self.time_after_peak_vel = self.time_movement[-1] - self.time_movement[peak_vel_idx]
+
+            self.acc_movement = np.sqrt(self.x_acc_movement ** 2 + self.y_acc_movement ** 2 + self.z_acc_movement ** 2)
+            peak_acc_idx = np.argmax(self.acc_movement)
+            self.peak_acc = self.acc_movement[peak_acc_idx]
+            self.time_after_peak_acc = self.time_movement[-1] - self.time_movement[peak_acc_idx]
+
             if self.center_movement:
                 self.start_pos -= self.start_pos
                 self.end_pos -= self.start_pos
@@ -226,12 +239,12 @@ class Trajectory(TrajectoryBase):
             _, self.z_fit, self.z_spline = self.b_spline_fit_1d(self.time_movement, self.z_movement, self.n_spline_fit)
 
             # instead of normalizing the velocity and accelerations, simply use cent_diff to directly compute them
-            self.x_vel_fit = cent_diff(self.time_movement, self.x_fit)
-            self.y_vel_fit = cent_diff(self.time_movement, self.y_fit)
-            self.z_vel_fit = cent_diff(self.time_movement, self.z_fit)
-            self.x_acc_fit = cent_diff(self.time_movement, self.x_vel_fit)
-            self.y_acc_fit = cent_diff(self.time_movement, self.y_vel_fit)
-            self.z_acc_fit = cent_diff(self.time_movement, self.z_vel_fit)
+            self.x_vel_fit = cent_diff(self.time_fit, self.x_fit)
+            self.y_vel_fit = cent_diff(self.time_fit, self.y_fit)
+            self.z_vel_fit = cent_diff(self.time_fit, self.z_fit)
+            self.x_acc_fit = cent_diff(self.time_fit, self.x_vel_fit)
+            self.y_acc_fit = cent_diff(self.time_fit, self.y_vel_fit)
+            self.z_acc_fit = cent_diff(self.time_fit, self.z_vel_fit)
         else:
             # in case the trajectory does not satisfy the movement initiation/termination criteria, in cases such as
             # when the participant number moved during the data collection period
@@ -250,6 +263,14 @@ class Trajectory(TrajectoryBase):
             self.x_acc_movement = None
             self.y_acc_movement = None
             self.z_acc_movement = None
+
+            self.vel_movement = None
+            self.peak_vel = None
+            self.time_after_peak_vel = None
+
+            self.acc_movement = None
+            self.peak_acc = None
+            self.time_after_peak_acc = None
 
     def assign_preprocess_function(self,
                                    preprocess_var: str,
@@ -504,6 +525,20 @@ class Trajectory(TrajectoryBase):
                   f'The size of the missing segments are: {self.n_missing_segments_movement}\n')
         else:
             print(f'This trial does not contain any missing data!')
+
+    def format_results(self):
+        return pd.DataFrame({
+            'contain_movement': self.contain_movement,
+            'fs': self.fs,
+            'fc': self.fc,
+            'rt': self.rt,
+            'mt': self.mt,
+            'movement_dist': np.linalg.norm(self.end_pos - self.start_pos),
+            'peak_vel': self.peak_vel,
+            'time_after_peak_vel': self.time_after_peak_vel,
+            'peak_acc': self.peak_acc,
+            'time_after_peak_acc': self.time_after_peak_acc,
+        }, index=[0])
 
     def demo_plots(self, fig=None, axs=None):
         if axs is None:
