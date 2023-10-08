@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
 import pandas as pd
-
+import numpy as np
 # from .coord import Coord
 # from .functions import *
 from tathum.coord import Coord
@@ -25,6 +25,7 @@ class TrajectoryBase(ABC):
                  fs: int = 250, fc: int = 10,
                  vel_threshold: float = 50.,
                  movement_selection_method: str = 'length', movement_selection_sign: str = 'positive',
+                 custom_compute_movement_boundary: callable = None,
                  spline_order: int = 3, n_spline_fit: int = 100,
                  ):
         self.vel_threshold = vel_threshold
@@ -37,6 +38,7 @@ class TrajectoryBase(ABC):
         self.n_spline_fit = n_spline_fit
         self.movement_selection_method = movement_selection_method
         self.movement_selection_sign = movement_selection_sign
+        self.custom_compute_movement_boundary = custom_compute_movement_boundary
         self.start_time, self.end_time, self.movement_ind = np.nan, np.nan, np.nan
         self.start_pos, self.end_pos = np.nan, np.nan
         self.movement_displacement, self.movement_velocity = np.nan, np.nan
@@ -130,51 +132,109 @@ class TrajectoryBase(ABC):
         """
         Computes the movement boundaries based on the velocity profile.
         """
-        vel_threshold_ind = np.where(self.movement_velocity >= self.vel_threshold)[0]
+        if self.custom_compute_movement_boundary is not None:
+            print('using the custom movement boundary method')
 
-        if len(vel_threshold_ind) == 0:
-            # in case there's no movement detected
-            return np.nan, np.nan, np.nan
+            boundary_output = self.custom_compute_movement_boundary(self)
 
-        vel_ind = consecutive(vel_threshold_ind)
+            if boundary_output is None:
+                raise ValueError('The custom movement boundary method must return a tuple of size 3 for '
+                                 'time_start (float, np.float64), '
+                                 'time_end (float, np.float64), '
+                                 'movement indices (list[(int, np.ind64)], np.ndarray[(int, np.ind64)])!! \n'
+                                 'Current return value is None!')
 
-        # in case there are multiple crossings at the threshold velocity
-        if len(vel_ind) > 1:
-            if self.movement_selection_method == 'length':
-                # only use the portion of movement with the largest number of samples
-                vel_len = [len(vel) for vel in vel_ind]
-                max_vel = np.where(vel_len == np.max(vel_len))[0][0]
-                vel_threshold_ind = vel_ind[max_vel]
+            if type(boundary_output) is not tuple:
+                raise ValueError(f'The custom movement boundary method must return a tuple of size 3 for '
+                                 'time_start (float, np.float64), '
+                                 'time_end (float, np.float64), '
+                                 'movement indices (list[(int, np.ind64)], np.ndarray[(int, np.ind64)])!! \n'
+                                 f'Current return data type is {type(boundary_output)}!')
 
-            elif self.movement_selection_method == 'sign':
-                movement_dist = []
-                for vel in vel_ind:
-                    movement_dist.append(self.movement_displacement[vel[-1]] - self.movement_displacement[vel[0]])
-                movement_dist = np.array(movement_dist)
+            if len(boundary_output) != 3:
+                raise ValueError(f'The custom movement boundary method must return a tuple of size 3 for '
+                                 'time_start (float, np.float64), '
+                                 'time_end (float, np.float64), '
+                                 'movement indices (list[(int, np.ind64)], np.ndarray[(int, np.ind64)])!! \n'
+                                 f'Current return size is {len(boundary_output)}!')
 
-                if self.movement_selection_sign == 'positive':
-                    segment_id = np.where(movement_dist > 0)[0]
-                else:
-                    segment_id = np.where(movement_dist < 0)[0]
+            if not isinstance(boundary_output[0], (float, np.float64)):
+                raise ValueError(f'The custom movement boundary method must return a tuple of size 3 for '
+                                 'time_start (float, np.float64), '
+                                 'time_end (float, np.float64), '
+                                 'movement indices (list[(int, np.ind64)], np.ndarray[(int, np.ind64)])!! \n'
+                                 f'Current return data type for time_start is {type(boundary_output[0])}!')
 
-                if len(segment_id) == 1:
-                    vel_threshold_ind = vel_ind[segment_id[0]]
-                elif len(segment_id) > 1:
-                    # get the segment with the most data
-                    vel_len = [len(vel_ind[seg_id]) for seg_id in segment_id]
+            if not isinstance(boundary_output[1], (float, np.float64)):
+                raise ValueError(f'The custom movement boundary method must return a tuple of size 3 for '
+                                 'time_start (float, np.float64), '
+                                 'time_end (float, np.float64), '
+                                 'movement indices (list[(int, np.ind64)], np.ndarray[(int, np.ind64)])!! \n'
+                                 f'Current return data type for time_end is {type(boundary_output[1])}!')
+
+            if not isinstance(boundary_output[2], (list, np.ndarray)):
+                raise ValueError(f'The custom movement boundary method must return a tuple of size 3 for '
+                                 'time_start (float, np.float64), '
+                                 'time_end (float, np.float64), '
+                                 'movement indices (list[(int, np.ind64)], np.ndarray[(int, np.ind64)])!! \n'
+                                 f'Current return data type for vel_threshold_ind is {type(boundary_output[2])}!')
+
+            if not all(isinstance(item, (int, np.int64)) for item in boundary_output[2]):
+                raise ValueError(f'The custom movement boundary method must return a tuple of size 3 for '
+                                 'time_start (float, np.float64), '
+                                 'time_end (float, np.float64), '
+                                 'movement indices (list[(int, np.ind64)], np.ndarray[(int, np.ind64)])!! \n'
+                                 f'Current return data type for values in movement indices are not all int!')
+
+            return boundary_output[0], boundary_output[1], boundary_output[2]
+        else:
+            print('using the original movement boundary method')
+
+            vel_threshold_ind = np.where(self.movement_velocity >= self.vel_threshold)[0]
+
+            if len(vel_threshold_ind) == 0:
+                # in case there's no movement detected
+                return np.nan, np.nan, np.nan
+
+            vel_ind = consecutive(vel_threshold_ind)
+
+            # in case there are multiple crossings at the threshold velocity
+            if len(vel_ind) > 1:
+                if self.movement_selection_method == 'length':
+                    # only use the portion of movement with the largest number of samples
+                    vel_len = [len(vel) for vel in vel_ind]
                     max_vel = np.where(vel_len == np.max(vel_len))[0][0]
-                    vel_threshold_ind = vel_ind[segment_id[max_vel]]
-                else:
-                    print('no valid movement detected!')
-                    return np.nan, np.nan, np.nan
+                    vel_threshold_ind = vel_ind[max_vel]
 
-        move_start_ind = vel_threshold_ind[0] - 1 if vel_threshold_ind[0] > 0 else 0
-        move_end_ind = vel_threshold_ind[-1] + 1 if vel_threshold_ind[-1] < self.n_frames - 1 else self.n_frames - 1
+                elif self.movement_selection_method == 'sign':
+                    movement_dist = []
+                    for vel in vel_ind:
+                        movement_dist.append(self.movement_displacement[vel[-1]] - self.movement_displacement[vel[0]])
+                    movement_dist = np.array(movement_dist)
 
-        time_start = self.time[move_start_ind]
-        time_end = self.time[move_end_ind]
+                    if self.movement_selection_sign == 'positive':
+                        segment_id = np.where(movement_dist > 0)[0]
+                    else:
+                        segment_id = np.where(movement_dist < 0)[0]
 
-        return time_start, time_end, vel_threshold_ind
+                    if len(segment_id) == 1:
+                        vel_threshold_ind = vel_ind[segment_id[0]]
+                    elif len(segment_id) > 1:
+                        # get the segment with the most data
+                        vel_len = [len(vel_ind[seg_id]) for seg_id in segment_id]
+                        max_vel = np.where(vel_len == np.max(vel_len))[0][0]
+                        vel_threshold_ind = vel_ind[segment_id[max_vel]]
+                    else:
+                        print('no valid movement detected!')
+                        return np.nan, np.nan, np.nan
+
+            move_start_ind = vel_threshold_ind[0] - 1 if vel_threshold_ind[0] > 0 else 0
+            move_end_ind = vel_threshold_ind[-1] + 1 if vel_threshold_ind[-1] < self.n_frames - 1 else self.n_frames - 1
+
+            time_start = self.time[move_start_ind]
+            time_end = self.time[move_end_ind]
+
+            return time_start, time_end, vel_threshold_ind
 
     def validate_movement(self):
         """

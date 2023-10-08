@@ -33,6 +33,7 @@ class Trajectory2D(TrajectoryBase):
                  movement_selection_ax: str = 'y',
                  movement_selection_method: str = 'length',
                  movement_selection_sign: str = 'positive',
+                 custom_compute_movement_boundary: typing.Optional[callable] = None,
 
                  movement_pos_time_cutoff: float = 0.2,
 
@@ -64,6 +65,7 @@ class Trajectory2D(TrajectoryBase):
             fs=fs, fc=fc,
             vel_threshold=vel_threshold,
             movement_selection_method=movement_selection_method, movement_selection_sign=movement_selection_sign,
+            custom_compute_movement_boundary=custom_compute_movement_boundary,
             spline_order=spline_order, n_spline_fit=n_spline_fit, )
 
         # fill in missing data before performing spatial transformation (otherwise the missing data value would be
@@ -305,4 +307,3 @@ class Trajectory2D(TrajectoryBase):
         else:
             raise ValueError('The movement selection axis has to be either x, y, or xy!')
 
-    # todo add visualization method

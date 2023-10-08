@@ -7,12 +7,9 @@ Written by X.M. Wang.
 Wang, X.M., & Welsh, T.N. (2023). TAT-HUM: Trajectory Analysis Toolkit for Human Movements in Python.
 
 """
-from typing import *
-
+import typing
 import pandas as pd
-
 from .coord import Coord
-
 import numpy as np
 from scipy.spatial.transform import Rotation
 from skspatial.objects import Plane, Points, Vector
@@ -36,13 +33,13 @@ class Trajectory(TrajectoryBase):
                  y: np.ndarray,
                  z: np.ndarray,
 
-                 displacement_preprocess: Tuple[Preprocesses, ...] = (Preprocesses.LOW_BUTTER,),
-                 velocity_preprocess: Tuple[Preprocesses, ...] = (Preprocesses.CENT_DIFF,),
-                 acceleration_preprocess: Tuple[Preprocesses, ...] = (Preprocesses.CENT_DIFF,),
+                 displacement_preprocess: typing.Tuple[Preprocesses, ...] = (Preprocesses.LOW_BUTTER,),
+                 velocity_preprocess: typing.Tuple[Preprocesses, ...] = (Preprocesses.CENT_DIFF,),
+                 acceleration_preprocess: typing.Tuple[Preprocesses, ...] = (Preprocesses.CENT_DIFF,),
 
                  transform_end_points=None,  # end points used for spatial transformation
 
-                 time: Optional[np.ndarray] = None,
+                 time: typing.Optional[np.ndarray] = None,
 
                  movement_plane_ax='xz',  # 2D plane that specifies the principal direction of the reach
                  primary_dir='z',  # the primary movement direction
@@ -51,12 +48,14 @@ class Trajectory(TrajectoryBase):
                  movement_selection_ax='z',
                  movement_selection_method='length',
                  movement_selection_sign=None,
+                 custom_compute_movement_boundary: typing.Optional[callable] = None,
 
                  center_movement=True,  # whether to center the movement at the origin
 
                  unit: str = 'mm',
                  missing_data_value: float = 0.,
-                 fs: Optional[int] = None, fc: Optional[int] = None,
+                 fs: typing.Optional[int] = None,
+                 fc: typing.Optional[int] = None,
                  vel_threshold: float = 50.,
 
                  movement_pos_time_cutoff=0.2,  # used for finding the start and end positions
@@ -123,6 +122,7 @@ class Trajectory(TrajectoryBase):
             fs=fs, fc=fc,
             vel_threshold=vel_threshold,
             movement_selection_method=movement_selection_method, movement_selection_sign=movement_selection_sign,
+            custom_compute_movement_boundary=custom_compute_movement_boundary,
             spline_order=spline_order, n_spline_fit=n_spline_fit, )
 
         self.center_movement = center_movement

@@ -378,46 +378,47 @@ def rotate_coord(x: np.ndarray, y: np.ndarray, z: np.ndarray,
     return coord_rot[:, 0], coord_rot[:, 1], coord_rot[:, 2]
 
 
-def find_movement_bounds(velocity: np.ndarray,
-                         velocity_threshold: Union[float, int],
+def find_movement_bounds(movement_feature: np.ndarray,
+                         feature_threshold: Union[float, int],
                          allow_multiple_segments=False) -> (int, int):
     """
-    :param velocity: a numpy ndarray (1D or 2D). If the input velocity is 2D, then the Pythagorean of the velocities
-    across different dimensions will be computed and used to determine movement.
-    :param velocity_threshold: the threshold based on which the movement initiation and termination will be determined.
+    :param movement_feature: a numpy ndarray (1D or 2D) that will be used to evaluate against a threshold. This could
+    be velocity or acceleration. If the input velocity is 2D, then the Pythagorean of the velocities across different
+    dimensions will be computed and used to determine movement.
+    :param feature_threshold: the threshold based on which the movement initiation and termination will be determined.
     :param allow_multiple_segments: whether returning more than one segments or automatically identify the segment with
     the most data points
     :return: the movement initiation and termination indices, either a single index for each or a list of indices
 
     Find movement start and end indices.
     """
-    vel_dim = velocity.shape
+    dim = movement_feature.shape
 
-    if len(vel_dim) == 1:
+    if len(dim) == 1:
         # only one coordinate was supplied, thus taking the absolute value of the velocity. This is to prevent
         # situations when negative velocity is not considered as exceeding the velocity threshold.
-        vel_eval = np.abs(velocity)
-    elif len(vel_dim) == 2:
+        feature_eval = np.abs(movement_feature)
+    elif len(dim) == 2:
         # when more than one coordinates were supplied, use the pythagorean of all the supplied coordinates
-        vel_eval = np.linalg.norm(velocity, axis=int(np.argmin(vel_dim)))
+        feature_eval = np.linalg.norm(movement_feature, axis=int(np.argmin(dim)))
     else:
         raise ValueError("The input velocity has to be a 1D or a 2D Numpy array!")
 
-    n_frames = len(vel_eval)
+    n_frames = len(feature_eval)
 
-    vel_threshold_ind = np.where(vel_eval >= velocity_threshold)[0]
+    feature_threshold_ind = np.where(feature_eval >= feature_threshold)[0]
 
-    if len(vel_threshold_ind) == 0:
+    if len(feature_threshold_ind) == 0:
         # in case there's no movement detected
         return np.array([np.nan, np.nan])
     else:
         # see if more than one movement segment is identified
-        vel_ind = consecutive(vel_threshold_ind)
+        feature_ind = consecutive(feature_threshold_ind)
 
         # directly return the indices if there is only one segments
-        if len(vel_ind) == 1:
-            move_start_ind = vel_threshold_ind[0] - 1 if vel_threshold_ind[0] - 1 > 0 else 0
-            move_end_ind = vel_threshold_ind[-1] + 1 if vel_threshold_ind[-1] + 1 < n_frames - 1 else n_frames - 1
+        if len(feature_ind) == 1:
+            move_start_ind = feature_threshold_ind[0] - 1 if feature_threshold_ind[0] - 1 > 0 else 0
+            move_end_ind = feature_threshold_ind[-1] + 1 if feature_threshold_ind[-1] + 1 < n_frames - 1 else n_frames - 1
             return move_start_ind, move_end_ind
 
         if allow_multiple_segments:
@@ -425,7 +426,7 @@ def find_movement_bounds(velocity: np.ndarray,
             move_start_ind = []
             move_end_ind = []
 
-            for segment in vel_ind:
+            for segment in feature_ind:
                 temp_start = segment[0]
                 temp_end = segment[-1]
 
@@ -433,15 +434,39 @@ def find_movement_bounds(velocity: np.ndarray,
                 move_end_ind.append(temp_end + 1 if temp_end < n_frames - 1 else n_frames - 1)
         else:
             # when there are more than one segments and the user wants to keep the segments with the most data
-            vel_len = [len(vel) for vel in vel_ind]
+            feature_len = [len(feature) for feature in feature_ind]
             # only use the portion of movement with the largest number of samples
-            max_vel = np.where(vel_len == np.max(vel_len))[0][0]
-            vel_threshold_ind = vel_ind[max_vel]
+            max_feature = np.where(feature_len == np.max(feature_len))[0][0]
+            feature_threshold_ind = feature_ind[max_feature]
 
-            move_start_ind = vel_threshold_ind[0] - 1 if vel_threshold_ind[0] - 1 > 0 else 0
-            move_end_ind = vel_threshold_ind[-1] + 1 if vel_threshold_ind[-1] + 1 < n_frames - 1 else n_frames - 1
+            move_start_ind = feature_threshold_ind[0] - 1 if feature_threshold_ind[0] - 1 > 0 else 0
+            move_end_ind = feature_threshold_ind[-1] + 1 if feature_threshold_ind[-1] + 1 < n_frames - 1 else n_frames - 1
 
         return move_start_ind, move_end_ind
+
+
+def find_movement_bounds_percent_threshold(feature, percent_feature=0.05, allow_multiple_segments=False):
+    """ Percentage of peak velocity as the threshold to find movement bounds. """
+    peak_vel = np.max(np.abs(feature))
+    vel_threshold = percent_feature * peak_vel
+    return find_movement_bounds(feature, vel_threshold, allow_multiple_segments)
+
+
+def find_movement_bounds_displacement(displacement: np.ndarray,
+                                      pos_start: np.ndarray,
+                                      pos_end: np.ndarray,
+                                      threshold: float = 0.1):
+    # get the Euclidean distance between the displacement trajectory and start position
+    dist_start = np.linalg.norm(displacement - pos_start, axis=1)
+    # get the Euclidean distance between the displacement trajectory and end position
+    dist_end = np.linalg.norm(displacement - pos_end, axis=1)
+
+    # find the indices where the distance is smaller than the threshold
+    start_ind = np.where(dist_start < threshold)[0]
+    end_ind = np.where(dist_end < threshold)[0]
+
+    # return the start and end indices
+    return start_ind[0], end_ind[-1]
 
 def find_start_end_pos(x: np.ndarray, y: np.ndarray, z: np.ndarray,
                        ind_start: int, ind_end: int, ind_buffer: int = 20) -> (np.ndarray, np.ndarray):
