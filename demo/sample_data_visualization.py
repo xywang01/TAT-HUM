@@ -65,7 +65,7 @@ plt.legend(fontsize=ax_label_size)
 plt.subplots_adjust(bottom=0.13, left=0.16, top=0.95, right=0.95)
 plt.show()
 
-fig.savefig(f'./demo/{plot_dv}.png')  # uncomment this to automatically save the figure
+# fig.savefig(f'./demo/{plot_dv}.png')  # uncomment this to automatically save the figure
 
 # %% plot congruency area
 

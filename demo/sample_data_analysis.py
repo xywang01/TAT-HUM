@@ -26,15 +26,30 @@ from demo.process_screen_calibration import process_screen_calibration
 
 # % analysis meta parameter setup
 
+# ======================================================================================================================
 # specify the data directories
 # NOTE: need to replace with the directories in which you store the data
-param_path = '~/Downloads/data/trial_data'  # parameter files generated from the experiment
-trajectory_path = '~/Downloads/data/trajectory_data'  # individual trajectory files for each trial
 
-# booleans to determine whether to visualize 3D calibration results. Setting up a boolean controller at the beginning
-# of the analysis script allows one to easily toggle different functionalities of the analysis using comment/uncomment
+# param_path = '~/Downloads/data/trial_data'  # parameter files generated from the experiment
+# trajectory_path = '~/Downloads/data/trajectory_data'  # individual trajectory files for each trial
+
+param_path = '/Users/michael/GitHub/tat-hum-psychopy/data'  # parameter files generated from the experiment
+trajectory_path = '/Users/michael/GitHub/tat-hum-psychopy/trajectory_data'  # individual trajectory files for each trial
+
+# ======================================================================================================================
+# Boolean controllers: Setting up boolean controllers at the beginning of the analysis script allows one to easily
+# toggle different functionalities of the analysis using comment/uncomment
+
+# booleans to determine whether to visualize 3D calibration results.
 # plot_3d_calibration_check = True
 plot_3d_calibration_check = False
+
+# booleans to determine whether to visualize the individual trajectories.
+# plot_trajectory_check = True
+plot_trajectory_check = False
+
+# ======================================================================================================================
+# experiment-specific parameters
 
 # max number of missing trials before going to visual inspection
 n_missing_max = 15
@@ -49,18 +64,46 @@ target_location_2d = (
     [140., 0., -np.sqrt(220. ** 2 - 140. ** 2)],)
 
 # a list of participants id's
-par_id_all = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
-# par_id_all = (3, )
+par_id_all = (1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13)
+# par_id_all = (2, )
 
-# % process screen calibration data using custom function
+# ======================================================================================================================
+# % process screen calibration data using a custom function
 
 calibration_data_all, calibration_center_all = process_screen_calibration(
     trajectory_path, par_id_all, debug_plot=False, return_center=True)
 
+# ======================================================================================================================
+# % custom movement boundary detection
+
+# This is an optional function that will be used as an input to the
+# Trajectory class. If not specified, the Trajectory class will use its default movement boundary detection function
+# that uses a fixed velocity threshold. Users could implement more sophisticated movement boundary detection algorithms,
+# such as using a certain proportion of a peak velocity as the velocity threshold, or even evaluating movement
+# onset/termination using displacement. The custom function should take a Trajectory object as its only input and must
+# return a tuple of size 3 for the following values:
+#       0. time_start (float, np.float64)
+#       1. time_end (float, np.float64)
+#       2. movement indices (list[(int, np.int64)], np.ndarray[(int, np.int64)])
+# As an example, we use 5% of the peak velocity as a threshold to determine the movement boundaries.
+def custom_movement_boundaries(_trajectory):
+    # use the velocity specific to movement boundary detection
+    velocity = _trajectory.movement_velocity
+    # find the peak velocity
+    peak_velocity = np.max(np.abs(velocity))
+    # use 5% of the peak velocity as the threshold
+    threshold = 0.05 * peak_velocity
+    # find the indices where the velocity exceeds the threshold
+    movement_idx = np.where(np.abs(velocity) > threshold)[0]
+    # return the start and end time of the movement, as well as the indices of the movement
+    return _trajectory.time[movement_idx[0]], _trajectory.time[movement_idx[-1]], movement_idx
+
+# ======================================================================================================================
 # % process trajectory data
 
 # save name for the processed data
-output_save_name = './demo/rt_mt_results.csv'
+# output_save_name = './demo/rt_mt_results.csv'
+output_save_name = './demo/rt_mt_results_test.csv'
 
 # a reference for processed trajectories - Sometimes, one may have already visually inspected the trials and determined which
 # to keep and which to discard based on certain selection criteria. Afterwards, however, one may decide to examine
@@ -91,6 +134,10 @@ plt.subplots_adjust(left=0.12, bottom=0.1, top=0.86, hspace=0.34)
 # a figure for visual inspection for all trajectories
 fig_traj, ax_traj = plt.subplots(1, 1)
 
+n_no_data = 0
+n_missing_data = 0
+n_bad_end_pos = 0
+n_false_start = 0
 # iterate all the participants
 for par_id_ind, par_id in enumerate(par_id_all):
 
@@ -122,8 +169,6 @@ for par_id_ind, par_id in enumerate(par_id_all):
     target_all = np.sort(param['target'].unique())
     cue_all = np.sort(param['cue_ind'].unique())
 
-    missing_data_count = 0
-
     par_processed = True if par_id in processed_par else False
 
     # loop through all the unique levels of different independent variables
@@ -150,6 +195,7 @@ for par_id_ind, par_id in enumerate(par_id_all):
                 temp_output_df = pd.DataFrame()
                 # this will be used to keep track of the trial index
                 temp_output_df_ind = []
+
                 for _, trial in temp_param.iterrows():
 
                     # skip trials that marked invalid during the experiment
@@ -205,7 +251,7 @@ for par_id_ind, par_id in enumerate(par_id_all):
                     except:
                         # this could happen when the data file is empty due to software glitch
                         print(f'file {file_name} does not contain valid data!')
-                        missing_data_count += 1
+                        n_no_data += 1
                         temp_row['keep_trial'] = False
                         temp_output_df = pd.concat([temp_output_df, pd.DataFrame(temp_row, index=[0])],
                                                    ignore_index=True)
@@ -217,35 +263,45 @@ for par_id_ind, par_id in enumerate(par_id_all):
                     # initialize a Trajectory object using this trial's trajectory data
                     trajectory = Trajectory(raw_data.x, raw_data.y, raw_data.z,
                                             time=raw_data.time, fs=250, fc=10,
+                                            missing_data_value=0.,
                                             movement_plane_ax=movement_plane,
                                             transform_end_points=end_points,
                                             displacement_preprocess=(Preprocesses.LOW_BUTTER,),
                                             velocity_preprocess=(Preprocesses.CENT_DIFF,),
-                                            acceleration_preprocess=(Preprocesses.CENT_DIFF,),)
+                                            acceleration_preprocess=(Preprocesses.CENT_DIFF,),
+                                            # custom_compute_movement_boundary=custom_movement_boundaries  # uncomment this line to use the custom movement boundary detection function
+                                            )
 
-                    keep_trial = True
                     # determine whether to keep this trial based on the number of missing data due to marker occlusion
-                    if trajectory.contain_missing & (trajectory.n_missing > n_missing_max) & (not trial_processed):
-                        missing_data_count += 1
+                    keep_trial = True
 
+                    # manual process - visually inspect the missing data and decide whether to keep the trial
+                    if trajectory.contain_missing & (not trial_processed):
                         # create a debug plot to visually inspect the missing data. If the most of the missing data
                         # occurred outside the movement segment, one can opt to keep the trial.
                         trajectory.debug_plots(fig=fig, axs=axs)
                         fig.suptitle(f'participant {par_id}, trial {trial_id} \n'
-                                     f'n missing total = {trajectory.n_missing}. '
-                                     f'n missing movement = {trajectory.n_missing_movement}.')
-
-                        plt.pause(0.1)
+                                     f'n missing inside movement = {trajectory.n_missing_segments_movement}.')
+                        plt.pause(0.2)
                         response = input('keep entry. Enter if yes, "n" if no. ')
                         axs[0].cla()
                         axs[1].cla()
                         if response == 'n':
                             keep_trial = False
+                            n_missing_data += 1
 
                     # automatically discard the trial if the trial does not contain any movement (e.g., the participant
                     # failed to move within the data collection period).
                     if not trajectory.contain_movement:
-                        temp_row['keep_trial'] = False
+                        n_no_data += 1
+                        keep_trial = False
+
+                    # also check for false start
+                    if trajectory.start_time < 0.1:
+                        n_false_start += 1
+                        keep_trial = False
+
+                    temp_row['keep_trial'] = keep_trial
 
                     # store all the relevant values if we decide to keep the trial
                     if keep_trial:
@@ -264,16 +320,15 @@ for par_id_ind, par_id in enumerate(par_id_all):
                     # sure the spatial transformation is done properly - it's always good to visually check the
                     # operations
                     if plot_3d_calibration_check:
-                        ax_3d.plot(trajectory.x_fit, trajectory.y_fit, trajectory.z_fit)
-                        ax_3d.scatter(trajectory.screen_corners_rot[:, 0],
-                                      trajectory.screen_corners_rot[:, 1],
-                                      trajectory.screen_corners_rot[:, 2])
-                        # ax_3d.plot(raw_data.x - screen_center[0],
-                        #            raw_data.y - screen_center[1],
-                        #            raw_data.z - screen_center[2])
-                        ax_3d.scatter(end_points[:, 0],
-                                      end_points[:, 1],
-                                      end_points[:, 2], marker='x', color='black')
+                        ax_3d.plot(trajectory.x_fit - trajectory.x_fit[0],
+                                   trajectory.y_fit - trajectory.y_fit[0],
+                                   trajectory.z_fit - trajectory.z_fit[0])
+                        ax_3d.scatter(trajectory.screen_corners_rot[:, 0] - trajectory.transform_origin[0],
+                                      trajectory.screen_corners_rot[:, 1] - trajectory.transform_origin[1],
+                                      trajectory.screen_corners_rot[:, 2] - trajectory.transform_origin[2])
+                        ax_3d.scatter(end_points[:, 0] - trajectory.transform_origin[0],
+                                      end_points[:, 1] - trajectory.transform_origin[1],
+                                      end_points[:, 2] - trajectory.transform_origin[2], marker='x', color='black')
                         ax_3d.set_xlabel('x')
                         ax_3d.set_ylabel('y')
                         ax_3d.set_zlabel('z')
@@ -300,16 +355,17 @@ for par_id_ind, par_id in enumerate(par_id_all):
                     # also need to remember to remove its trajectory data before computing the mean trajectory
                     trajectory_mean.remove_trajectory(outliers_ind)
 
+                    n_bad_end_pos += len(outliers_ind)
+
                 # after removing the end point outliers, finally store the processed data to the final output df
                 output_df = pd.concat([output_df, temp_output_df], ignore_index=True)
 
                 # finally can compute the mean trajectory
                 trajectory_mean.compute_mean_trajectory()
 
-                # also visually compare the mean trajectory with the individual trajectories in case there is any
+                # [OPTIONAL] visually compare the mean trajectory with the individual trajectories in case there is any
                 # abnormal trials if the participant has not been processed previously
-                if not par_processed:
-                    # plot the trajectories
+                if (not par_processed) & plot_trajectory_check:
                     trajectory_mean.debug_plots_trajectory(fig=fig_traj, ax=ax_traj)
 
                     # use figure title to provide more information
@@ -348,7 +404,10 @@ for par_id_ind, par_id in enumerate(par_id_all):
                                                       ignore_index=True)
                 trajectory_ind += 1
 
-    print(f'Participant {par_id}: Discarded {missing_data_count} trials due to missing data!')
+print(f'There are {n_no_data} trials with no data! \n'
+      f'There are {n_missing_data} trials with missing data! \n'
+      f'There are {n_bad_end_pos} trials with bad end points! \n'
+      f'There are {n_false_start} trials with false start!')
 
 # convert the time from seconds to miliseconds
 output_df['rt'] = output_df['rt'] * 1000
@@ -359,7 +418,8 @@ output_df.to_csv(output_save_name)
 
 # %% analyze trajectory congruency area
 
-trajectory_out_save_name = './demo/mean_area_results.csv'
+# trajectory_out_save_name = './demo/mean_area_results.csv'
+trajectory_out_save_name = './demo/mean_area_results_test.csv'
 
 # first get all the unique values
 par_id_all = trajectory_mean_reference['par_id'].unique()
