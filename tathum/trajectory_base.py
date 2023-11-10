@@ -133,7 +133,6 @@ class TrajectoryBase(ABC):
         Computes the movement boundaries based on the velocity profile.
         """
         if self.custom_compute_movement_boundary is not None:
-            print('using the custom movement boundary method')
 
             boundary_output = self.custom_compute_movement_boundary(self)
 
@@ -188,8 +187,6 @@ class TrajectoryBase(ABC):
 
             return boundary_output[0], boundary_output[1], boundary_output[2]
         else:
-            print('using the original movement boundary method')
-
             vel_threshold_ind = np.where(self.movement_velocity >= self.vel_threshold)[0]
 
             if len(vel_threshold_ind) == 0:

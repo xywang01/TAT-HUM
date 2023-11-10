@@ -200,7 +200,7 @@ class Trajectory(TrajectoryBase):
                 self.ind_missing_movement = []
                 self.n_missing_movement = 0
 
-            self.n_missing_segments_movement = np.array(len(seg) for seg in self.missing_segments_movement)
+            self.n_missing_segments_movement = np.array([len(seg) for seg in self.missing_segments_movement])
 
             self.rt = self.start_time
             self.mt = self.end_time - self.start_time
