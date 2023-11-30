@@ -60,43 +60,66 @@ class Trajectory(TrajectoryBase):
 
                  movement_pos_time_cutoff=0.2,  # used for finding the start and end positions
 
-                 spline_order=3, n_spline_fit=100,
+                 spline_order=3,
+                 n_spline_fit=100,
                  ):
         """
-        :param n_spline_fit: number of fitted time stamps for the B-spline fit.
-        :param time: the time stamps, if not supplied will calculate using sampling frequency.
-        :param fs: sampling frequency.
-        :param fc: cutoff frequency for the low-pass Butterworth filter.
-        :param unit: position measurement unit.
         :param x: x coordinate
         :param y: y coordinate
         :param z: z coordinate
-        :param time: the corresponding time stamps
+
+        :param displacement_preprocess: the preprocesses to apply to the displacement data. See functions.Preprocesses
+        for the available preprocesses.
+        :param velocity_preprocess: the preprocesses to apply to the velocity data. See functions.Preprocesses for the
+        available preprocesses.
+        :param acceleration_preprocess: the preprocesses to apply to the acceleration data. See functions.Preprocesses
+        for the available preprocesses.
+
         :param transform_end_points: A minimum of three 3D points that specifies the plane on which the movement
         occurred. If provided, the best-fitting plane for these points will be computed and used to transform the
         trajectory so that the transformed movement would take place on a horizontal surface. This could be derived
         using the same Trajectory class.
-        :param movement_plane_ax: The 2D plane of interest.
-        :param vel_threshold: The velocity threshold to determine movement initiation and termination.
-        :param movement_pos_time_cutoff: The amount of time before/after the movement initiation/termination to consider when
-        computing the trajectory's end positions. Instead of using the position at a particular time, the end position
-        is the average of all positions within this time cutoff range.
-        :param mt_threshold: threshold for determining whether the trial contains valid movement. MT below this
-        threshold would be considered invalid
-        :param n_fit: number of fitted trajectory points when using bspline
-        :param fs: sampling frequency
-        :param fc: cutoff frequency (for the Butterworth filter)
-        :param spline_order: the order of the b-spline fit, default to 3
-        :param unit: position measure's unit
-        :param missing_data_filler: the filler value for missing data, default to be 0.
-        :param movement_selection_method: the method to select the movement segment in case extraneous movements are
+
+        :param time: the corresponding time stamps
+
+        :param movement_plane_ax: The 2D plane (xy, xz, or yz) of interest.
+        :param primary_dir: The primary direction of the movement. The primary direction is the direction of the
+        movement that is of most theoretical relevance to the experiment. For example, if the experiment is about
+        reaching, then the primary direction is the direction of the reach. The secondary direction would be deduced
+        based on the primary direction and the movement plane.
+        :param ground_dir: The ground's normal direction (upright). This is used to determine the transformation matrix.
+
+        :param movement_selection_ax: The axis ('x', 'y', 'z', 'xy', 'xz', 'yz', 'xyz') along which the movement
+        selection should be performed.
+        :param movement_selection_method: The method to select the movement segment in case extraneous movements are
         detected. Can be chosen from ('length', 'sign', ). 'length' simply select the movement segment with the most
         number of points, whereas 'sign' selects the movement segment based on movement direction. 'length' is more
         effective for small extraneous movements whereas 'sign' is more effective for movement reversals during the data
         collection period. See movement_selection_sign for more.
-        :param movement_selection_sign: can be chosen from ('positive', 'negative'), only applies to directional
+        :param movement_selection_sign: Can be chosen from ('positive', 'negative'), only applies to directional
         movement. The sign is determined by the difference between the end and start position.
-        :param movement_selection_ax: the axis ('x', 'y', 'z') along which the movement selection should be performed
+        :param custom_compute_movement_boundary: A custom function to compute the movement initiation and termination
+        boundaries. The function should take in the trajectory object and return a tuple of size 3 for
+        1) time_start (float, np.float64), 2) time_end (float, np.float64),
+        3) movement indices (list[(int, np.ind64)], np.ndarray[(int, np.ind64)])
+
+        :param center_movement: whether to center the movement at the origin
+
+        :param unit: position measure's unit
+        :param missing_data_value: the filler value for missing data, default to be 0. This would be used for missing
+        data interpolation.
+        :param fs: sampling frequency (Hz). This can be left as None if the time stamps are provided.
+        :param fc: cutoff frequency (for the Butterworth filter). This can be left as None if the cutoff frequency is
+        to be computed automatically.
+        :param vel_threshold: The velocity threshold to determine movement initiation and termination, in the same unit
+        as the displacement data.
+
+        :param movement_pos_time_cutoff: The amount of time before/after the movement initiation/termination to
+        consider when computing the trajectory's end positions. Instead of using the position at a particular time,
+        the end position is the average of all positions within this time cutoff range.
+
+        :param spline_order: the order of the b-spline fit, default to 3
+        :param n_spline_fit: number of fitted trajectory points when using bspline
         """
         self.x_original, self.y_original, self.z_original = x.copy(), y.copy(), z.copy()  # keep a separate copy of the original data
         self.x, self.y, self.z = x, y, z
@@ -220,11 +243,13 @@ class Trajectory(TrajectoryBase):
             self.vel_movement = np.sqrt(self.x_vel_movement ** 2 + self.y_vel_movement ** 2 + self.z_vel_movement ** 2)
             peak_vel_idx = np.argmax(self.vel_movement)
             self.peak_vel = self.vel_movement[peak_vel_idx]
+            self.time_to_peak_vel = self.time_movement[peak_vel_idx] - self.time_movement[0]
             self.time_after_peak_vel = self.time_movement[-1] - self.time_movement[peak_vel_idx]
 
             self.acc_movement = np.sqrt(self.x_acc_movement ** 2 + self.y_acc_movement ** 2 + self.z_acc_movement ** 2)
             peak_acc_idx = np.argmax(self.acc_movement)
             self.peak_acc = self.acc_movement[peak_acc_idx]
+            self.time_to_peak_acc = self.time_movement[peak_acc_idx] - self.time_movement[0]
             self.time_after_peak_acc = self.time_movement[-1] - self.time_movement[peak_acc_idx]
 
             if self.center_movement:
@@ -271,6 +296,29 @@ class Trajectory(TrajectoryBase):
             self.acc_movement = None
             self.peak_acc = None
             self.time_after_peak_acc = None
+
+    def find_movement_angle(self, perc_of_movement=0.2):
+        """
+        Find the angle of the movement based on the first x% of the movement on movement_plane_ax and primary_dir.
+        :param perc_of_movement: the percentage of the movement to consider when computing the movement angle
+        :return: the movement angle
+        """
+        if self.contain_movement:
+            end_idx = int(np.round(perc_of_movement * len(self.x_movement)))
+
+            displacement_vector = self.get_displacement_vector(self.movement_plane_ax)
+
+            start_pos = displacement_vector[0]
+            end_pos = displacement_vector[end_idx]
+            movement_vector = end_pos - start_pos
+
+            primary_dir_vector = np.zeros((3,))
+            primary_dir_vector[self.primary_dir] = 1
+
+            movement_angle = np.arccos(np.dot(movement_vector, primary_dir_vector) / np.linalg.norm(movement_vector))
+            return movement_angle
+        else:
+            return None
 
     def assign_preprocess_function(self,
                                    preprocess_var: str,
@@ -319,57 +367,71 @@ class Trajectory(TrajectoryBase):
             raise ValueError('The order of the central difference has to be either 1 (for velocity ) or 2 '
                              '(for acceleration!')
 
+    def get_displacement_vector(self, ax):
+        """
+        Get the displacement vector along the specified axis.
+        :param ax: the axis ('x', 'y', 'z', 'xy', 'xz', 'yz', 'xyz') along which the displacement vector should be
+        :return: the displacement vector
+        """
+        axis_mapping = {
+            'x': self.x,
+            'y': self.y,
+            'z': self.z,
+            'xy': np.concatenate([np.expand_dims(self.x, axis=1), np.expand_dims(self.y, axis=1)], axis=1),
+            'xz': np.concatenate([np.expand_dims(self.x, axis=1), np.expand_dims(self.z, axis=1)], axis=1),
+            'yz': np.concatenate([np.expand_dims(self.y, axis=1), np.expand_dims(self.z, axis=1)], axis=1),
+            'xyz': np.concatenate([
+                np.expand_dims(self.x, axis=1),
+                np.expand_dims(self.y, axis=1),
+                np.expand_dims(self.z, axis=1)], axis=1),
+        }
+        return axis_mapping[ax]
+
     def find_movement_displacement(self, movement_selection_ax: str = 'z'):
-        if movement_selection_ax == 'x':
-            return np.abs(self.x)
-        elif movement_selection_ax == 'y':
-            return np.abs(self.y)
-        elif movement_selection_ax == 'z':
-            return np.abs(self.z)
-        elif movement_selection_ax == 'xy':
-            return np.linalg.norm(np.concatenate([
-                np.expand_dims(self.x, axis=1),
-                np.expand_dims(self.y, axis=1)], axis=1), axis=1)
-        elif movement_selection_ax == 'xz':
-            return np.linalg.norm(np.concatenate([
-                np.expand_dims(self.x, axis=1),
-                np.expand_dims(self.z, axis=1)], axis=1), axis=1)
-        elif movement_selection_ax == 'yz':
-            return np.linalg.norm(np.concatenate([
-                np.expand_dims(self.y, axis=1),
-                np.expand_dims(self.z, axis=1)], axis=1), axis=1)
-        elif movement_selection_ax == 'xyz':
-            return np.linalg.norm(np.concatenate([
-                np.expand_dims(self.x, axis=1),
-                np.expand_dims(self.y, axis=1),
-                np.expand_dims(self.z, axis=1)], axis=1), axis=1)
+        """
+        Find the displacement vectors based on which the movement selection will be performed.
+        :param movement_selection_ax: the axis ('x', 'y', 'z', 'xy', 'xz', 'yz', 'xyz') along which the movement will
+        be selected.
+        :return: the displacement vectors
+        """
+        if movement_selection_ax in ['x', 'y', 'z']:
+            return np.abs(self.get_displacement_vector(movement_selection_ax))
+        elif movement_selection_ax in ['xy', 'xz', 'yz', 'xyz']:
+            return np.linalg.norm(self.get_displacement_vector(movement_selection_ax), axis=1)
         else:
             raise ValueError('Invalid movement_selection_ax! Please use the following: x, y, z, xy, xz, yz, or xyz')
 
+    def get_velocity_vector(self, ax):
+        """
+        Get the velocity vector along the specified axis.
+        :param ax: the axis ('x', 'y', 'z', 'xy', 'xz', 'yz', 'xyz') along which the velocity vector should be
+        :return: the velocity vector
+        """
+        axis_mapping = {
+            'x': self.x_vel,
+            'y': self.y_vel,
+            'z': self.z_vel,
+            'xy': np.concatenate([np.expand_dims(self.x_vel, axis=1), np.expand_dims(self.y_vel, axis=1)], axis=1),
+            'xz': np.concatenate([np.expand_dims(self.x_vel, axis=1), np.expand_dims(self.z_vel, axis=1)], axis=1),
+            'yz': np.concatenate([np.expand_dims(self.y_vel, axis=1), np.expand_dims(self.z_vel, axis=1)], axis=1),
+            'xyz': np.concatenate([
+                np.expand_dims(self.x_vel, axis=1),
+                np.expand_dims(self.y_vel, axis=1),
+                np.expand_dims(self.z_vel, axis=1)], axis=1),
+        }
+        return axis_mapping[ax]
+
     def find_movement_velocity(self, movement_selection_ax: str = 'z'):
-        if movement_selection_ax == 'x':
-            return np.abs(self.x_vel)
-        elif movement_selection_ax == 'y':
-            return np.abs(self.y_vel)
-        elif movement_selection_ax == 'z':
-            return np.abs(self.z_vel)
-        elif movement_selection_ax == 'xy':
-            return np.linalg.norm(np.concatenate([
-                np.expand_dims(self.x_vel, axis=1),
-                np.expand_dims(self.y_vel, axis=1)], axis=1), axis=1)
-        elif movement_selection_ax == 'xz':
-            return np.linalg.norm(np.concatenate([
-                np.expand_dims(self.x_vel, axis=1),
-                np.expand_dims(self.z_vel, axis=1)], axis=1), axis=1)
-        elif movement_selection_ax == 'yz':
-            return np.linalg.norm(np.concatenate([
-                np.expand_dims(self.y_vel, axis=1),
-                np.expand_dims(self.z_vel, axis=1)], axis=1), axis=1)
-        elif movement_selection_ax == 'xyz':
-            return np.linalg.norm(np.concatenate([
-                np.expand_dims(self.x_vel, axis=1),
-                np.expand_dims(self.y_vel, axis=1),
-                np.expand_dims(self.z_vel, axis=1)], axis=1), axis=1)
+        """
+        Find the velocity vectors based on which the movement selection will be performed.
+        :param movement_selection_ax: the axis ('x', 'y', 'z', 'xy', 'xz', 'yz', 'xyz') along which the movement will
+        be selected.
+        :return: the velocity vectors
+        """
+        if movement_selection_ax in ['x', 'y', 'z']:
+            return np.abs(self.get_velocity_vector(movement_selection_ax))
+        elif movement_selection_ax in ['xy', 'xz', 'yz', 'xyz']:
+            return np.linalg.norm(self.get_velocity_vector(movement_selection_ax), axis=1)
         else:
             raise ValueError('Invalid movement_selection_ax! Please use the following: x, y, z, xy, xz, yz, or xyz')
 
@@ -377,7 +439,7 @@ class Trajectory(TrajectoryBase):
         """
         :param screen_corners: the corners of the surface on which the movement was performed
         :param full_output: whether to return full output, which includes the objects for the plane and corners
-        :return:
+        :return: the transformation matrix, the origin of the transformation, and the transformed screen corners
         """
         screen_center = np.mean(screen_corners, axis=0)
         rotation, surface_center, transform_info = compute_transformation_3d(
@@ -414,6 +476,7 @@ class Trajectory(TrajectoryBase):
 
     def find_start_and_end_pos(self, time_cutoff):
         """
+        Find the start and end positions of the movement.
         :param time_cutoff: The amount of time before/after the movement initiation/termination to consider when
         computing the trajectory's end positions. Instead of using the position at a particular time, the end position
         is the average of all positions within this time cutoff range.
@@ -535,10 +598,18 @@ class Trajectory(TrajectoryBase):
             'mt': self.mt,
             'movement_dist': np.linalg.norm(self.end_pos - self.start_pos),
             'peak_vel': self.peak_vel,
+            'time_to_peak_vel': self.time_to_peak_vel,
             'time_after_peak_vel': self.time_after_peak_vel,
             'peak_acc': self.peak_acc,
+            'time_to_peak_acc': self.time_to_peak_acc,
             'time_after_peak_acc': self.time_after_peak_acc,
         }, index=[0])
+
+    def display_results(self):
+        _results = self.format_results()
+
+        for col in _results.columns:
+            print(f'{col}: {_results[col].values[0]:.2f}')
 
     def demo_plots(self, fig=None, axs=None):
         if axs is None:
