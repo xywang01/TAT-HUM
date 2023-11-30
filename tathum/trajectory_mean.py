@@ -7,9 +7,11 @@ Written by X.M. Wang.
 Wang, X.M., & Welsh, T.N. (2023). TAT-HUM: Trajectory Analysis Toolkit for Human Movements in Python.
 
 """
+from typing import Optional
 
 import matplotlib.pyplot as plt
 
+from .trajectory_base import TrajectoryBase
 from .trajectory import Trajectory
 from .coord import Coord
 
@@ -22,7 +24,7 @@ class TrajectoryMean:
     z = Coord()
     time = Coord()
 
-    def __init__(self, exp_condition: dict):  # x, y, z, x_sd, y_sd, z_sd,
+    def __init__(self, exp_condition: Optional[dict] = None):
         self.all_trajectories = []
         self.exp_condition = exp_condition
         self.x_mean = None
@@ -32,7 +34,7 @@ class TrajectoryMean:
         self.y_sd = None
         self.z_sd = None
 
-    def add_trajectory(self, traj: Trajectory):
+    def add_trajectory(self, traj: TrajectoryBase):
         self.all_trajectories.append(traj)
 
     def compute_mean_trajectory(self,
@@ -59,7 +61,7 @@ class TrajectoryMean:
                     temp = np.append(temp, temp_coord, axis=1)
 
             mean = np.mean(temp, axis=1)
-            sd = np.std(temp, axis=1)   # / np.sqrt(temp.shape[1])
+            sd = np.std(temp, axis=1)  # / np.sqrt(temp.shape[1])
             self.__setattr__(mean_name, mean)
             self.__setattr__(sd_name, sd)
 
@@ -67,10 +69,12 @@ class TrajectoryMean:
         for ind in sorted(ind_list, reverse=True):  # loop in reverse order to not throw off the subsequent indices
             self.all_trajectories.pop(ind)
 
-    def debug_plots_trajectory(self, principal_dir='xz',
-                                      single_name_generic='_fit',
-                                      mean_name_generic='_mean',
-                                      fig=None, ax=None):
+    def debug_plots_trajectory(self,
+                               principal_dir='xz',
+                               single_name_generic='_fit',
+                               mean_name_generic='_mean',
+                               fig=None, ax=None,
+                               show_text=False,):
         if ax is None:
             fig, ax = plt.subplots(1, 1)
 
@@ -80,16 +84,19 @@ class TrajectoryMean:
             plt_y = trajectory.__getattribute__(f'{principal_dir[1]}{single_name_generic}')
             n_plot = len(plt_x)
             ax.plot(plt_x, plt_y, pickradius=5, alpha=.7)
-            ax.text(plt_x[int(n_plot/2)], plt_y[int(n_plot/2)], str(ind))
+            ax.text(plt_x[int(n_plot / 2)], plt_y[int(n_plot / 2)], str(ind))
 
         mean_x = self.__getattribute__(f'{principal_dir[0]}{mean_name_generic}')
         mean_y = self.__getattribute__(f'{principal_dir[1]}{mean_name_generic}')
-        ax.plot(mean_x, mean_y, linewidth=8, alpha=.5, color='b', pickradius=2)
-        ax.scatter(mean_x[0], mean_y[0], marker='o', color='g', s=100)
-        ax.text(mean_x[0], mean_y[0], 'START', color='g', fontsize=20)
 
+        ax.plot(mean_x, mean_y, linewidth=8, alpha=.5, color='b', pickradius=2)
+
+        ax.scatter(mean_x[0], mean_y[0], marker='o', color='g', s=100)
         ax.scatter(mean_x[-1], mean_y[-1], marker='o', color='r', s=100)
-        ax.text(mean_x[-1], mean_y[-1], 'END', color='r', fontsize=20)
+
+        if show_text:
+            ax.text(mean_x[0], mean_y[0], 'START', color='g', fontsize=20)
+            ax.text(mean_x[-1], mean_y[-1], 'END', color='r', fontsize=20)
 
         ax.set_xlabel('x displacement')
         ax.set_ylabel('y displacement')

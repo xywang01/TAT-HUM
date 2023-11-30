@@ -117,6 +117,7 @@ class TrajectoryBase(ABC):
     def validate_size(self, n_dim: int = 3):
         """ Validate input coordinate size. """
         n_x, n_y = len(self.x), len(self.y)
+
         if n_dim == 3:
             n_z = len(self.z)
             if not (n_x == n_y == n_z):
@@ -132,57 +133,40 @@ class TrajectoryBase(ABC):
         """
         Computes the movement boundaries based on the velocity profile.
         """
+        output_err_msg = 'The custom movement boundary method must return a tuple of size 3 for ' \
+                         'time_start (float, np.float64), ' \
+                         'time_end (float, np.float64), ' \
+                         'movement indices (list[(int, np.ind64)], np.ndarray[(int, np.ind64)])!! \n'
         if self.custom_compute_movement_boundary is not None:
 
             boundary_output = self.custom_compute_movement_boundary(self)
 
             if boundary_output is None:
-                raise ValueError('The custom movement boundary method must return a tuple of size 3 for '
-                                 'time_start (float, np.float64), '
-                                 'time_end (float, np.float64), '
-                                 'movement indices (list[(int, np.ind64)], np.ndarray[(int, np.ind64)])!! \n'
+                raise ValueError(f'{output_err_msg}'
                                  'Current return value is None!')
 
             if type(boundary_output) is not tuple:
-                raise ValueError(f'The custom movement boundary method must return a tuple of size 3 for '
-                                 'time_start (float, np.float64), '
-                                 'time_end (float, np.float64), '
-                                 'movement indices (list[(int, np.ind64)], np.ndarray[(int, np.ind64)])!! \n'
+                raise ValueError(f'{output_err_msg}'
                                  f'Current return data type is {type(boundary_output)}!')
 
             if len(boundary_output) != 3:
-                raise ValueError(f'The custom movement boundary method must return a tuple of size 3 for '
-                                 'time_start (float, np.float64), '
-                                 'time_end (float, np.float64), '
-                                 'movement indices (list[(int, np.ind64)], np.ndarray[(int, np.ind64)])!! \n'
+                raise ValueError(f'{output_err_msg}'
                                  f'Current return size is {len(boundary_output)}!')
 
             if not isinstance(boundary_output[0], (float, np.float64)):
-                raise ValueError(f'The custom movement boundary method must return a tuple of size 3 for '
-                                 'time_start (float, np.float64), '
-                                 'time_end (float, np.float64), '
-                                 'movement indices (list[(int, np.ind64)], np.ndarray[(int, np.ind64)])!! \n'
+                raise ValueError(f'{output_err_msg}'
                                  f'Current return data type for time_start is {type(boundary_output[0])}!')
 
             if not isinstance(boundary_output[1], (float, np.float64)):
-                raise ValueError(f'The custom movement boundary method must return a tuple of size 3 for '
-                                 'time_start (float, np.float64), '
-                                 'time_end (float, np.float64), '
-                                 'movement indices (list[(int, np.ind64)], np.ndarray[(int, np.ind64)])!! \n'
+                raise ValueError(f'{output_err_msg}'
                                  f'Current return data type for time_end is {type(boundary_output[1])}!')
 
             if not isinstance(boundary_output[2], (list, np.ndarray)):
-                raise ValueError(f'The custom movement boundary method must return a tuple of size 3 for '
-                                 'time_start (float, np.float64), '
-                                 'time_end (float, np.float64), '
-                                 'movement indices (list[(int, np.ind64)], np.ndarray[(int, np.ind64)])!! \n'
+                raise ValueError(f'{output_err_msg}'
                                  f'Current return data type for vel_threshold_ind is {type(boundary_output[2])}!')
 
             if not all(isinstance(item, (int, np.int64)) for item in boundary_output[2]):
-                raise ValueError(f'The custom movement boundary method must return a tuple of size 3 for '
-                                 'time_start (float, np.float64), '
-                                 'time_end (float, np.float64), '
-                                 'movement indices (list[(int, np.ind64)], np.ndarray[(int, np.ind64)])!! \n'
+                raise ValueError(f'{output_err_msg}'
                                  f'Current return data type for values in movement indices are not all int!')
 
             return boundary_output[0], boundary_output[1], boundary_output[2]

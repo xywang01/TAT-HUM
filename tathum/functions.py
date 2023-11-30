@@ -239,6 +239,11 @@ def find_optimal_cutoff_frequency(signal: np.ndarray,
     return fc_test[np.argmin(norm_resid)]
 
 
+def rotation_mat_2d(angle):
+    return np.array([
+        [np.cos(angle), -np.sin(angle)],
+        [np.sin(angle), np.cos(angle)]])
+
 def compute_transformation_2d(start_pos: np.ndarray,
                               end_pos: np.ndarray,
                               to_dir: np.ndarray = np.array([0, 1]),):
@@ -250,10 +255,7 @@ def compute_transformation_2d(start_pos: np.ndarray,
     angle = np.arccos(np.matmul(movement_ax_norm, to_dir))
 
     # get the rotational matrix based on the angle
-    return np.array([
-        [np.cos(angle), -np.sin(angle)],
-        [np.sin(angle), np.cos(angle)]])
-
+    return rotation_mat_2d(angle)
 
 def compute_transformation_3d(surface_points_x: np.ndarray,
                               surface_points_y: np.ndarray,
