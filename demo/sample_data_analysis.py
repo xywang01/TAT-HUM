@@ -30,11 +30,12 @@ from demo.process_screen_calibration import process_screen_calibration
 # specify the data directories
 # NOTE: need to replace with the directories in which you store the data
 
-# param_path = '~/Downloads/data/trial_data'  # parameter files generated from the experiment
-# trajectory_path = '~/Downloads/data/trajectory_data'  # individual trajectory files for each trial
+# Demo data of a single participant
+param_path = './demo/demo_data/data_3d/trial_data'  # parameter files generated from the experiment
+trajectory_path = './demo/demo_data/data_3d/trajectory_data'  # individual trajectory files for each trial
 
-param_path = '/Users/michael/GitHub/tat-hum-psychopy/data'  # parameter files generated from the experiment
-trajectory_path = '/Users/michael/GitHub/tat-hum-psychopy/trajectory_data'  # individual trajectory files for each trial
+# param_path = '/Users/michael/GitHub/tat-hum-psychopy/data'  # parameter files generated from the experiment
+# trajectory_path = '/Users/michael/GitHub/tat-hum-psychopy/trajectory_data'  # individual trajectory files for each trial
 
 # ======================================================================================================================
 # Boolean controllers: Setting up boolean controllers at the beginning of the analysis script allows one to easily
@@ -63,9 +64,12 @@ target_location_2d = (
     [-140., 0., -np.sqrt(220. ** 2 - 140. ** 2)],
     [140., 0., -np.sqrt(220. ** 2 - 140. ** 2)],)
 
-# a list of participants id's
-par_id_all = (1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13)
-# par_id_all = (2, )
+# a tuple of participants id's - This is the demo dataset found in the demo folder. Only one participant's data is
+# available
+par_id_all = (1, )
+
+# # a tuple of participants id's - This is for the complete dataset that the user needs to download from OSF
+# par_id_all = (1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13)
 
 # ======================================================================================================================
 # % process screen calibration data using a custom function
@@ -102,8 +106,7 @@ def custom_movement_boundaries(_trajectory):
 # % process trajectory data
 
 # save name for the processed data
-# output_save_name = './demo/rt_mt_results.csv'
-output_save_name = './demo/rt_mt_results_test.csv'
+output_save_name = './demo/rt_mt_results.csv'
 
 # a reference for processed trajectories - Sometimes, one may have already visually inspected the trials and determined which
 # to keep and which to discard based on certain selection criteria. Afterwards, however, one may decide to examine
@@ -417,9 +420,7 @@ output_df['keep_both'] = output_df['keep_trial'] & output_df['keep_trajectory']
 output_df.to_csv(output_save_name)
 
 # %% analyze trajectory congruency area
-
-# trajectory_out_save_name = './demo/mean_area_results.csv'
-trajectory_out_save_name = './demo/mean_area_results_test.csv'
+trajectory_out_save_name = './demo/mean_area_results.csv'
 
 # first get all the unique values
 par_id_all = trajectory_mean_reference['par_id'].unique()
