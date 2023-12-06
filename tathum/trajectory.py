@@ -11,13 +11,12 @@ import typing
 import pandas as pd
 from .coord import Coord
 import numpy as np
-from scipy.spatial.transform import Rotation
-from skspatial.objects import Plane, Points, Vector
-from pytransform3d.rotations import matrix_from_axis_angle
+from skspatial.objects import Plane
 import matplotlib.pyplot as plt
 from .trajectory_base import TrajectoryBase
 from .functions import Preprocesses, cent_diff, low_butter, fill_missing_data, find_optimal_cutoff_frequency, \
     compute_transformation_3d
+
 
 class Trajectory(TrajectoryBase):
     """

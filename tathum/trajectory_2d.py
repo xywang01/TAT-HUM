@@ -1,7 +1,16 @@
-# from .coord import Coord
+"""
+A class for 2D trajectory analysis.
+
+This class inherits from the base class TrajectoryBase. It implements the abstract methods in the base class, and
+provides concrete implementations for the abstract methods in the base class.
+
+Written by X.M. Wang.
+
+Wang, X.M., & Welsh, T.N. (2023). TAT-HUM: Trajectory Analysis Toolkit for Human Movements in Python.
+"""
+
 from tathum.trajectory_base import TrajectoryBase
 from tathum.functions import *
-
 import typing
 import numpy as np
 import pandas as pd
@@ -61,6 +70,7 @@ class Trajectory2D(TrajectoryBase):
             if len(self.time) != self.n_frames:
                 raise ValueError('The size of the input time stamps is not the same as the size of the coordinates!')
 
+        # initialize the base class
         super().__init__(
             unit=unit,
             missing_data_value=missing_data_value,

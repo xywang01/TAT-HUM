@@ -7,7 +7,6 @@ Written by X.M. Wang.
 Wang, X.M., & Welsh, T.N. (2023). TAT-HUM: Trajectory Analysis Toolkit for Human Movements in Python.
 
 """
-
 from typing import Union, Optional
 import vg
 import numpy as np
@@ -15,10 +14,9 @@ from scipy import interpolate
 from scipy.signal import butter, filtfilt
 from scipy.spatial.transform import Rotation
 from skspatial.objects import Plane, Points, Vector
-from pytransform3d.rotations import matrix_from_axis_angle
-
 from enum import Enum
 from functools import reduce
+
 
 def check_input_coord_2d(x, y):
     """

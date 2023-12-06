@@ -5,16 +5,11 @@ the mean trajectory.
 Written by X.M. Wang.
 
 Wang, X.M., & Welsh, T.N. (2023). TAT-HUM: Trajectory Analysis Toolkit for Human Movements in Python.
-
 """
 from typing import Optional
-
 import matplotlib.pyplot as plt
-
 from .trajectory_base import TrajectoryBase
-from .trajectory import Trajectory
 from .coord import Coord
-
 import numpy as np
 
 
@@ -35,11 +30,22 @@ class TrajectoryMean:
         self.z_sd = None
 
     def add_trajectory(self, traj: TrajectoryBase):
+        """
+        Add a trajectory to the TrajectoryMean object.
+        :param traj: The trajectory to add.
+        :return: None
+        """
         self.all_trajectories.append(traj)
 
     def compute_mean_trajectory(self,
                                 traj_names=('x_fit', 'y_fit', 'z_fit'),
                                 post_script=''):
+        """
+        Compute the mean trajectory for the current condition.
+        :param traj_names: The names of the trajectory attributes to compute the mean trajectory.
+        :param post_script: The post script to append to the mean trajectory attribute names, if needed.
+        :return: None
+        """
         for name in traj_names:
             coord_name = name[0]
             mean_name = f'{coord_name}{post_script}_mean'
@@ -66,6 +72,11 @@ class TrajectoryMean:
             self.__setattr__(sd_name, sd)
 
     def remove_trajectory(self, ind_list):
+        """
+        Remove trajectories from the TrajectoryMean object.
+        :param ind_list: The indices of the trajectories to remove.
+        :return: None
+        """
         for ind in sorted(ind_list, reverse=True):  # loop in reverse order to not throw off the subsequent indices
             self.all_trajectories.pop(ind)
 
@@ -75,6 +86,16 @@ class TrajectoryMean:
                                mean_name_generic='_mean',
                                fig=None, ax=None,
                                show_text=False,):
+        """
+        Plot the individual trajectories and the mean trajectory.
+        :param principal_dir: The principal directions to plot the trajectories.
+        :param single_name_generic: The generic name of the trajectory attributes to plot the individual trajectories.
+        :param mean_name_generic: The generic name of the trajectory attributes to plot the mean trajectory.
+        :param fig: The figure to plot the trajectories.
+        :param ax: The axes to plot the trajectories.
+        :param show_text: Whether to show the text on the plot.
+        :return: The figure and axes.
+        """
         if ax is None:
             fig, ax = plt.subplots(1, 1)
 

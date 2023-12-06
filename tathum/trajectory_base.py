@@ -1,9 +1,13 @@
-from abc import ABC, abstractmethod
+"""
+This module contains the base class for all trajectory classes. It defines the common attributes and methods that are
+shared by all trajectory classes. It also defines the abstract methods that all concrete classes need to implement.
 
-import pandas as pd
-import numpy as np
-# from .coord import Coord
-# from .functions import *
+Written by X.M. Wang.
+
+Wang, X.M., & Welsh, T.N. (2023). TAT-HUM: Trajectory Analysis Toolkit for Human Movements in Python.
+"""
+
+from abc import ABC, abstractmethod
 from tathum.coord import Coord
 from tathum.functions import *
 
@@ -16,9 +20,6 @@ class TrajectoryBase(ABC):
     time = Coord()
 
     def __init__(self,
-
-                 primary_dir: str = 'z',
-
                  unit: str = 'mm',
                  n_dim: int = 3,
                  missing_data_value: float = 0.,
@@ -46,6 +47,9 @@ class TrajectoryBase(ABC):
 
     @property
     def n_frames(self):
+        """
+        The number of frames in the trajectory.
+        """
         return self._n_frames
 
     @n_frames.setter
