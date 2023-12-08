@@ -1,3 +1,11 @@
+"""
+This is a demo script to show how to use the Trajectory2D class to analyze 2D movement data from Kinarm.
+
+Written by X.M. Wang.
+
+Wang, X.M., & Welsh, T.N. (2023). TAT-HUM: Trajectory Analysis Toolkit for Human Movements in Python.
+"""
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -56,7 +64,7 @@ tp_end_idx = np.array(exp_summary['TP_TABLE:End Target']) - 1
 home_pos = np.array([target_x_global[0], target_y_global[0]])
 
 # create a figure to plot the trajectory during debug
-fig_traj, ax_traj = plt.subplots(2, 1)
+fig_debug, ax_debug = plt.subplots(2, 1)
 
 # iterate through all the trials based on KinArm Python reader's default data structure
 trial_summary = pd.DataFrame()
@@ -170,7 +178,8 @@ for trial in raw_data.trials.values():
 
     # # uncomment to check for movement trajectories for each trial
     # trajectory.debug_plots(fig=fig_traj, axs=ax_traj)
-    # plt.suptitle(f'{trajectory.time_to_peak_vel:.2f} ms', fontsize=20)
+    # # plt.suptitle(f'{trajectory.time_to_peak_vel:.2f} ms', fontsize=20)
+    # # plt.suptitle(f'n local max = {len(temp_vel_local_max)}', fontsize=20)
     #
     # plt.pause(.5)
     # input('Hit enter')
@@ -179,10 +188,15 @@ for trial in raw_data.trials.values():
     # add the trajectory to the TrajectoryMean object
     trajectory_mean_all[trial_type_idx].add_trajectory(trajectory)
 
-# compute the mean trajectory for the current condition
-# NOTE: The default compute mean trajectory takes all three axis. However, because we only use two axes, we
-# need to manually specify the axes to compute the mean trajectory.
+trial_summary.to_csv('./demo/sample_kinarm_analysis_results.csv', index=False)
+
+fig_traj, ax_traj = plt.subplots(1, 1)
 for idx, _ in enumerate(trial_type_all):
+    # compute the mean trajectory for the current condition
+    # NOTE: The default compute mean trajectory takes all three axis. However, because we only use two axes, we
+    # need to manually specify the axes to compute the mean trajectory.
     trajectory_mean_all[idx].compute_mean_trajectory(traj_names=('x_fit', 'y_fit'))
-    trajectory_mean_all[idx].debug_plots_trajectory(principal_dir='xy')
+
+    # plot the mean trajectory
+    trajectory_mean_all[idx].debug_plots_trajectory(principal_dir='xy', fig=fig_traj, ax=ax_traj, show_text=True)
 
