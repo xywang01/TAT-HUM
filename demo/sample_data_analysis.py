@@ -34,9 +34,6 @@ from demo.process_screen_calibration import process_screen_calibration
 param_path = './demo/demo_data/data_3d/trial_data'  # parameter files generated from the experiment
 trajectory_path = './demo/demo_data/data_3d/trajectory_data'  # individual trajectory files for each trial
 
-# param_path = '/Users/michael/GitHub/tat-hum-psychopy/data'  # parameter files generated from the experiment
-# trajectory_path = '/Users/michael/GitHub/tat-hum-psychopy/trajectory_data'  # individual trajectory files for each trial
-
 # ======================================================================================================================
 # Boolean controllers: Setting up boolean controllers at the beginning of the analysis script allows one to easily
 # toggle different functionalities of the analysis using comment/uncomment
@@ -365,6 +362,10 @@ for par_id_ind, par_id in enumerate(par_id_all):
 
                 # finally can compute the mean trajectory
                 trajectory_mean.compute_mean_trajectory()
+
+                # can also optionally compute the mean velocity
+                trajectory_mean.compute_mean_trajectory(
+                    traj_names=('x_vel_fit', 'y_vel_fit', 'z_vel_fit'))
 
                 # [OPTIONAL] visually compare the mean trajectory with the individual trajectories in case there is any
                 # abnormal trials if the participant has not been processed previously
