@@ -1,8 +1,9 @@
 """
-Sample data analysis script for the spatial cueing experiment in Wang & Welsh (2023). Written by X.M. Wang.
+Sample data analysis script for the spatial cueing experiment in Wang & Welsh (2023).
+
+Written by X.M. Wang.
 
 Wang, X.M., & Welsh, T.N. (2023). TAT-HUM: Trajectory Analysis Toolkit for Human Movements in Python.
-
 """
 
 # %% import all the necessary packages
