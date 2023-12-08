@@ -41,7 +41,7 @@ class Trajectory2D(TrajectoryBase):
                  fs: typing.Optional[int] = None, fc: typing.Optional[int] = None,
                  vel_threshold: float = 50.,
 
-                 movement_selection_ax: str = 'y',
+                 movement_selection_ax: str = 'xy',
                  movement_selection_method: str = 'length',
                  movement_selection_sign: str = 'positive',
                  custom_compute_movement_boundary: typing.Optional[callable] = None,
@@ -103,6 +103,7 @@ class Trajectory2D(TrajectoryBase):
 
         self.movement_displacement = self.find_movement_displacement(movement_selection_ax=movement_selection_ax)
         self.movement_velocity = self.find_movement_velocity(movement_selection_ax=movement_selection_ax)
+        self.movement_acceleration = self.find_movement_acceleration(movement_selection_ax=movement_selection_ax)
 
         self.start_time, self.end_time, self.movement_ind = self.compute_movement_boundaries()
         self.contain_movement = self.validate_movement()
@@ -120,15 +121,16 @@ class Trajectory2D(TrajectoryBase):
             self.x_acc_movement = self.x_acc[self.movement_ind]
             self.y_acc_movement = self.y_acc[self.movement_ind]
 
-            self.vel_movement = np.sqrt(self.x_vel_movement ** 2 + self.y_vel_movement ** 2)
-            peak_vel_idx = np.argmax(self.vel_movement)
-            self.peak_vel = self.vel_movement[peak_vel_idx]
+            # trim the movement velocity to find the peak velocity
+            self.movement_velocity = self.movement_velocity[self.movement_ind]
+            peak_vel_idx = np.argmax(self.movement_velocity)
+            self.peak_vel = self.movement_velocity[peak_vel_idx]
             self.time_to_peak_vel = self.time_movement[peak_vel_idx] - self.time_movement[0]
             self.time_after_peak_vel = self.time_movement[-1] - self.time_movement[peak_vel_idx]
 
-            self.acc_movement = np.sqrt(self.x_acc_movement ** 2 + self.y_acc_movement ** 2)
-            peak_acc_idx = np.argmax(self.acc_movement)
-            self.peak_acc = self.acc_movement[peak_acc_idx]
+            self.movement_acceleration = self.movement_acceleration[self.movement_ind]
+            peak_acc_idx = np.argmax(self.movement_acceleration)
+            self.peak_acc = self.movement_acceleration[peak_acc_idx]
             self.time_to_peak_acc = self.time_movement[peak_acc_idx] - self.time_movement[0]
             self.time_after_peak_acc = self.time_movement[-1] - self.time_movement[peak_acc_idx]
 
@@ -156,7 +158,7 @@ class Trajectory2D(TrajectoryBase):
             self.time_to_peak_vel = None
             self.time_after_peak_vel = None
 
-            self.acc_movement = None
+            self.movement_acceleration = None
             self.peak_acc = None
             self.time_to_peak_acc = None
             self.time_after_peak_acc = None
@@ -335,7 +337,7 @@ class Trajectory2D(TrajectoryBase):
         else:
             return None
 
-    def find_movement_displacement(self, movement_selection_ax: str = 'y'):
+    def find_movement_displacement(self, movement_selection_ax: str = 'xy'):
         if movement_selection_ax == 'x':
             return self.x
         elif movement_selection_ax == 'y':
@@ -348,7 +350,7 @@ class Trajectory2D(TrajectoryBase):
         else:
             raise ValueError('The movement selection axis has to be either x, y, or xy!')
 
-    def find_movement_velocity(self, movement_selection_ax: str = 'y'):
+    def find_movement_velocity(self, movement_selection_ax: str = 'xy'):
         if movement_selection_ax == 'x':
             return self.x_vel
         elif movement_selection_ax == 'y':
@@ -357,6 +359,19 @@ class Trajectory2D(TrajectoryBase):
             return np.linalg.norm(np.concatenate([
                 np.expand_dims(self.x_vel, axis=1),
                 np.expand_dims(self.y_vel, axis=1),
+            ], axis=1), axis=1)
+        else:
+            raise ValueError('The movement selection axis has to be either x, y, or xy!')
+
+    def find_movement_acceleration(self, movement_selection_ax: str = 'xy'):
+        if movement_selection_ax == 'x':
+            return self.x_acc
+        elif movement_selection_ax == 'y':
+            return self.y_acc
+        elif movement_selection_ax == 'xy':
+            return np.linalg.norm(np.concatenate([
+                np.expand_dims(self.x_acc, axis=1),
+                np.expand_dims(self.y_acc, axis=1),
             ], axis=1), axis=1)
         else:
             raise ValueError('The movement selection axis has to be either x, y, or xy!')

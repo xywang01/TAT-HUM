@@ -201,6 +201,7 @@ class Trajectory(TrajectoryBase):
         # identify movement initiation and termination
         self.movement_displacement = self.find_movement_displacement(movement_selection_ax=movement_selection_ax)
         self.movement_velocity = self.find_movement_velocity(movement_selection_ax=movement_selection_ax)
+        self.movement_acceleration = self.find_movement_acceleration(movement_selection_ax=movement_selection_ax)
         self.start_time, self.end_time, self.movement_ind = self.compute_movement_boundaries()
         self.contain_movement = self.validate_movement()
 
@@ -239,15 +240,15 @@ class Trajectory(TrajectoryBase):
             self.y_acc_movement = self.y_vel[self.movement_ind]
             self.z_acc_movement = self.z_vel[self.movement_ind]
 
-            self.vel_movement = np.sqrt(self.x_vel_movement ** 2 + self.y_vel_movement ** 2 + self.z_vel_movement ** 2)
-            peak_vel_idx = np.argmax(self.vel_movement)
-            self.peak_vel = self.vel_movement[peak_vel_idx]
+            self.movement_velocity = self.movement_velocity[self.movement_ind]
+            peak_vel_idx = np.argmax(self.movement_velocity)
+            self.peak_vel = self.movement_velocity[peak_vel_idx]
             self.time_to_peak_vel = self.time_movement[peak_vel_idx] - self.time_movement[0]
             self.time_after_peak_vel = self.time_movement[-1] - self.time_movement[peak_vel_idx]
 
-            self.acc_movement = np.sqrt(self.x_acc_movement ** 2 + self.y_acc_movement ** 2 + self.z_acc_movement ** 2)
-            peak_acc_idx = np.argmax(self.acc_movement)
-            self.peak_acc = self.acc_movement[peak_acc_idx]
+            self.movement_acceleration = self.movement_acceleration[self.movement_ind]
+            peak_acc_idx = np.argmax(self.movement_acceleration)
+            self.peak_acc = self.movement_acceleration[peak_acc_idx]
             self.time_to_peak_acc = self.time_movement[peak_acc_idx] - self.time_movement[0]
             self.time_after_peak_acc = self.time_movement[-1] - self.time_movement[peak_acc_idx]
 
@@ -288,12 +289,12 @@ class Trajectory(TrajectoryBase):
             self.y_acc_movement = None
             self.z_acc_movement = None
 
-            self.vel_movement = None
             self.peak_vel = None
+            self.time_to_peak_vel = None
             self.time_after_peak_vel = None
 
-            self.acc_movement = None
             self.peak_acc = None
+            self.time_to_peak_acc = None
             self.time_after_peak_acc = None
 
     def find_movement_angle(self, perc_of_movement=0.2):
@@ -431,6 +432,41 @@ class Trajectory(TrajectoryBase):
             return np.abs(self.get_velocity_vector(movement_selection_ax))
         elif movement_selection_ax in ['xy', 'xz', 'yz', 'xyz']:
             return np.linalg.norm(self.get_velocity_vector(movement_selection_ax), axis=1)
+        else:
+            raise ValueError('Invalid movement_selection_ax! Please use the following: x, y, z, xy, xz, yz, or xyz')
+
+
+    def get_acceleration_vector(self, ax):
+        """
+        Get the acceleration vector along the specified axis.
+        :param ax: the axis ('x', 'y', 'z', 'xy', 'xz', 'yz', 'xyz') along which the acceleration vector should be
+        :return: the acceleration vector
+        """
+        axis_mapping = {
+            'x': self.x_acc,
+            'y': self.y_acc,
+            'z': self.z_acc,
+            'xy': np.concatenate([np.expand_dims(self.x_acc, axis=1), np.expand_dims(self.y_acc, axis=1)], axis=1),
+            'xz': np.concatenate([np.expand_dims(self.x_acc, axis=1), np.expand_dims(self.z_acc, axis=1)], axis=1),
+            'yz': np.concatenate([np.expand_dims(self.y_acc, axis=1), np.expand_dims(self.z_acc, axis=1)], axis=1),
+            'xyz': np.concatenate([
+                np.expand_dims(self.x_acc, axis=1),
+                np.expand_dims(self.y_acc, axis=1),
+                np.expand_dims(self.z_acc, axis=1)], axis=1),
+        }
+        return axis_mapping[ax]
+
+    def find_movement_acceleration(self, movement_selection_ax: str = 'z'):
+        """
+        Find the acceleration vectors based on which the movement selection will be performed.
+        :param movement_selection_ax: the axis ('x', 'y', 'z', 'xy', 'xz', 'yz', 'xyz') along which the movement will
+        be selected.
+        :return: the acceleration vectors
+        """
+        if movement_selection_ax in ['x', 'y', 'z']:
+            return np.abs(self.get_acceleration_vector(movement_selection_ax))
+        elif movement_selection_ax in ['xy', 'xz', 'yz', 'xyz']:
+            return np.linalg.norm(self.get_acceleration_vector(movement_selection_ax), axis=1)
         else:
             raise ValueError('Invalid movement_selection_ax! Please use the following: x, y, z, xy, xz, yz, or xyz')
 

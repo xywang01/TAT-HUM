@@ -29,6 +29,10 @@ class TrajectoryMean:
         self.y_sd = None
         self.z_sd = None
 
+    @property
+    def n_trajectories(self):
+        return len(self.all_trajectories)
+    
     def add_trajectory(self, traj: TrajectoryBase):
         """
         Add a trajectory to the TrajectoryMean object.
@@ -81,7 +85,7 @@ class TrajectoryMean:
             self.all_trajectories.pop(ind)
 
     def debug_plots_trajectory(self,
-                               principal_dir='xz',
+                               principal_dir='xy',
                                single_name_generic='_fit',
                                mean_name_generic='_mean',
                                fig=None, ax=None,
@@ -99,7 +103,6 @@ class TrajectoryMean:
         if ax is None:
             fig, ax = plt.subplots(1, 1)
 
-        print(f'There are {len(self.all_trajectories)} trajectories!')
         for ind, trajectory in enumerate(self.all_trajectories):
             plt_x = trajectory.__getattribute__(f'{principal_dir[0]}{single_name_generic}')
             plt_y = trajectory.__getattribute__(f'{principal_dir[1]}{single_name_generic}')
