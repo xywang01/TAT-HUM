@@ -32,7 +32,7 @@ class TrajectoryMean:
     @property
     def n_trajectories(self):
         return len(self.all_trajectories)
-    
+
     def add_trajectory(self, traj: TrajectoryBase):
         """
         Add a trajectory to the TrajectoryMean object.

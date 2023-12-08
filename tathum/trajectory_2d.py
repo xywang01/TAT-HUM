@@ -228,19 +228,19 @@ class Trajectory2D(TrajectoryBase):
         Implementation of the abstract method in the base class TrajectoryBase, specific to the current Trajectory2D
         class.
         """
-        ind_start = (self.time < self.start_time) & (self.time > self.start_time - time_cutoff)
+        ind_start = (self.time > self.start_time - time_cutoff) & (self.time < self.start_time + time_cutoff)
         if np.any(ind_start):
             start_x = self.x[ind_start]
             start_y = self.y[ind_start]
-            mean_start = np.mean(np.array([start_x, start_y]), axis=1)
+            mean_start = np.nanmean(np.array([start_x, start_y]), axis=1)
         else:
             mean_start = np.empty((2,)) * np.nan
 
-        ind_end = (self.time > self.end_time) & (self.time < self.end_time + time_cutoff)
+        ind_end = (self.time > self.end_time - time_cutoff) & (self.time < self.end_time + time_cutoff)
         if np.any(ind_end) > 0:
             end_x = self.x[ind_end]
             end_y = self.y[ind_end]
-            mean_end = np.mean(np.array([end_x, end_y]), axis=1)
+            mean_end = np.nanmean(np.array([end_x, end_y]), axis=1)
         else:
             mean_end = np.empty((2,)) * np.nan
 

@@ -5,8 +5,8 @@ measures.
 Written by X.M. Wang.
 
 Wang, X.M., & Welsh, T.N. (2023). TAT-HUM: Trajectory Analysis Toolkit for Human Movements in Python.
-
 """
+
 import typing
 import pandas as pd
 from .coord import Coord
@@ -518,7 +518,7 @@ class Trajectory(TrajectoryBase):
         :return: mean_start, mean_end: the start and end positions
         """
 
-        ind_start = (self.time < self.start_time) & (self.time > self.start_time - time_cutoff)
+        ind_start = (self.time < self.start_time + time_cutoff) & (self.time > self.start_time - time_cutoff)
         if np.any(ind_start):
             start_x = self.x[ind_start]
             start_y = self.y[ind_start]
@@ -527,7 +527,7 @@ class Trajectory(TrajectoryBase):
         else:
             mean_start = np.empty((3,)) * np.nan
 
-        ind_end = (self.time > self.end_time) & (self.time < self.end_time + time_cutoff)
+        ind_end = (self.time < self.end_time + time_cutoff) & (self.time > self.end_time - time_cutoff)
         if np.any(ind_end) > 0:
             end_x = self.x[ind_end]
             end_y = self.y[ind_end]

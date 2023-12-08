@@ -5,8 +5,8 @@ how they would want their data to be processed with more flexibility.
 Written by X.M. Wang.
 
 Wang, X.M., & Welsh, T.N. (2023). TAT-HUM: Trajectory Analysis Toolkit for Human Movements in Python.
-
 """
+
 from typing import Union, Optional
 import vg
 import numpy as np
