@@ -21,7 +21,7 @@ from tathum.trajectory_mean import TrajectoryMean
 # After download, you can directly copy the folder (KinarmReaderPython) to your project folder and call the import
 # statement below
 import sys
-sys.path.append('/Users/michael/GitHub/tathum-kinarm')
+sys.path.append('/Users/michael/GitHub/tathum-kinarm')  # optionally add the path to the KinarmReaderPython folder if not in the same directory
 from KinarmReaderPython.exam_load import ExamLoad
 
 
