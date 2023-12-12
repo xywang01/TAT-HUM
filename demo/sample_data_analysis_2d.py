@@ -14,6 +14,7 @@ from tathum.functions import Preprocesses
 from tathum.trajectory_2d import Trajectory2D
 from tathum.trajectory_mean import TrajectoryMean
 
+# NOTE: The sample 2D data is currently unavailable and will be uploaded later.
 # Load the data. The raw data is grouped into a single csv file. The transform data is also grouped into a single csv
 # file.
 raw_data = pd.read_csv(f'./demo/demo_data/data_2d/demo_data_2d.csv')

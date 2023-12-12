@@ -32,6 +32,7 @@ To facilitate learning, this toolkit also provides sample data which can be foun
 The data in `./demo/demo_data/data_3d` was collected using Optotrak and was a part of the experimental dataset featured
 in the manuscript. For the full dataset, please access the OSF repository [here](https://osf.io/24qvm/).
 
+[NOTE: The sample 2D data is current unavailable. It will be made available at a later time.]
 The data in `./demo/demo_data/data_2d` were collected using Optotrak that contain targeted pointing movement performed
 on a 2D plane (no vertical movement) from Manzone, Manzone, et al. (2023). The dataset contains two conditions, full
 vision during the pointing movement ("full", and hence with online feedback) or a preview of the target before the
