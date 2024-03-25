@@ -1,6 +1,11 @@
 # TAT-HUM: Trajectory Analysis Toolkit for Human Movement
 
-For more details on this toolkit, see the preprint [here](https://psyarxiv.com/4yrk7).
+This toolkit is now published as:
+
+Wang, X.M., & Welsh, T.N. (2024). TAT-HUM: Trajectory Analysis Toolkit for Human Movements. *Behavior Research 
+Methods*. https://doi.org/10.3758/s13428-024-02378-4. 
+
+Alternatively, content of the manuscript can also be accessed via [OSF](https://psyarxiv.com/4yrk7).
 
 ## Abstract
 
@@ -158,8 +163,11 @@ data within a consecutive segment. Because determining where the missing data ar
 and termination requires first identifying where the movement has started and ended, evaluating the validity of the
 missing data handling needs to happen after the movement boundaries have been identified, which, in turn, requires
 other preprocessing steps  (see Figure 8a and section [Automated Processing Pipeline](#automated-processing-pipeline).
-Further, the trial should definitely be discarded if the missing values happen during movement initiation or
-termination.
+Further, researchers should consider discarding trials if the missing values happen during movement initiation or 
+termination because key information on the start and endpoint of movement might not be available. Such trials could be 
+kept pending other factors such as, but not exclusively, the context of the movements, using other thresholds to 
+identify start and end, as well as the nature of the research question and key variables to test that question.
+
 
 #### Data smoothing
 
@@ -196,6 +204,15 @@ from tathum.functions import find_optimal_cutoff_frequency
 fs = 250
 fc = find_optimal_cutoff_frequency(x, fs)
 ```
+
+Note that even if the kinematic data were collected from the same participant using the same measurement device at the 
+same sampling frequency, the resulting optimal cutoff frequency may still differ from trial to trial. This variability 
+arises because the characteristics of the movement (e.g. extraneous movements, temporary building vibration, etc.) 
+could differ from trial to trial, which would result in different frequency content, noise levels, and signa-to-noise 
+ratios. The optimal cutoff frequency depends on these characteristics and, therefore, different trials from the same 
+session may not yield the same optimal cutoff frequency. In the end, users should always ensure that filtering (and 
+other data filtering and reduction processes) does not introduce artifacts to the data by inspecting if there are any 
+systematic trends in the residuals. 
 
 Subsequently, the Butterworth filter could be applied to the movement data using the optimal cutoff frequency and the
 sampling frequency. The filter included in the present toolkit, `low_butter()`, is a wrapper function that combines
@@ -342,6 +359,13 @@ The toolkit also contains an equivalent function, `compute_transformation_2d()`,
 uses the movement’s start and end position to identify the movement direction, and rotates the trajectory so that the
 movement direction is aligned with a third input that specifies the desired direction.
 
+```python
+from tathum.functions import compute_transformation_2d
+	
+rotation_mat_2d = compute_transformation_2d(
+    start_pos, end_pos, to_dir)
+```
+
 #### Kinematic Analysis
 
 In addition to position, velocity and acceleration of the movement could also provide useful information. Given
@@ -376,9 +400,11 @@ are typically identified using velocity-based criteria. The function, `find_move
 velocity threshold as inputs to identify the movement boundary, returning indices of the velocity vector that marks
 movement initiation and termination. Movement initiation is defined as the point at which velocity exceeds the threshold
 whereas movement termination is defined as the point at which velocity drops below the same threshold (normally 30 or
-50 mm/s), which can be set by the user during the function call (Figure 5). It is because the initiation and termination
-of the movement are identified by exceeding or falling below these velocity thresholds that the participant is
-instructed to remain stationary at the beginning and end of each movement for a short period of time.
+50 mm/s), which can be set by the user during the function call (Figure 5). Commonly used thresholds include 30 
+(Grierson et al., 2009; Handlovsky et al., 2004) or 50 mm/s (Heath et al., 2004; Whitwell & Goodale, 2013). It is 
+because the initiation and termination of the movement are identified by exceeding or falling below these velocity 
+thresholds that the participant is instructed to remain stationary at the beginning and end of each movement for a short 
+period of time.
 
 Because there are three axes to the movement trajectory, the use of velocity could differ depending on the study and
 the primary axis of the movement trajectory. For instance, the example provided in Figure 5 only used a single axis
@@ -468,7 +494,11 @@ movement_start_ind, mvoement_end_ind = find_movement_bounds_percent_threshold(
     x_vel, percent_feature=0.05, allow_multiple_segments=False)
 ```
 
-Finally, users can also adopt a displacement-based approach using displacement, the appropriate start and end position,
+When solely relying on the percentage-based method, users should beware of the scenarios in which extraneous movements 
+may produce velocity greater than the target movement’s peak velocity. In this situation, the incorrect peak velocity 
+would be used to derive the threshold. To avoid this issue, it would generally be a good practice to visually inspect 
+the resulting kinematic trajectories in relation to the detected threshold (see Automated Processing Pipeline section). 
+Finally, users can also adopt a displacement-based approach using displacement, the appropriate start and end position, 
 and a distance threshold:
 
 ```python
@@ -587,6 +617,16 @@ The same method can also be used to parametrize velocity and acceleration data. 
 concatenate the trajectories for each dimension (i.e., x, y, z) based on experimental conditions and derive the mean
 trajectories as well as their corresponding variability.
 
+When normalizing using the method provided in this toolkit, users should take heed of the potential artifacts that this 
+approach may introduce to the data. Although normalization via B-spline parameterization offers a continuous 
+representation of the movement trajectories as a function of time, this approach still normalizes trajectories in the 
+time domain where the fitted trajectories are bound by their respective MT. As demonstrated in Whitwell and Goodale 
+(2013) and discussed in Gallivan and Chapman (2014), if the dependent measure extracted from the time-normalized 
+kinematic data covary with MT, time normalization could introduce artifacts to the dependent measure (see Fig 1. of 
+Whitwell and Goodale (2013) for an intuitive illustration using reaches-to-grasping movement). In the current context, 
+when comparing the spatial characteristics across different conditions using the normalized trajectories, it is crucial 
+to ascertain that MT does not drastically differ between these conditions. 
+
 ### Automated Processing Pipeline
 
 The trajectory processing functionalities illustrated above are commonly used in analyzing human movement data. Users
@@ -635,7 +675,7 @@ smooth the velocity data, for instance, they could simply update the input value
 velocity_preprocess = (Preprocesses.CENT_DIFF, Preprocesses.LOW_BUTTER)
 ```
 
-In the current version, only different quotients and low-pass Butterworth filter are implemented.
+In the current version, only difference quotients and low-pass Butterworth filter are implemented.
 
 The preprocessing yields the velocity and acceleration vectors along each dimension of the movement. By default,
 movement boundaries are determined based on a fixed velocity threshold. However, users can also choose other movement
@@ -703,12 +743,18 @@ trajectory.format_results()
 ```
 
 ```pycon 
-   contain_movement          fs  fc        rt        mt  movement_dist  \
-0              True  250.077549  10  0.446234  0.395943      341.73819   
-     peak_vel  time_to_peak_vel  time_after_peak_vel    peak_acc  \
-0  981.148145          0.171526             0.216426  981.148145   
-   time_to_peak_acc  time_after_peak_acc  
-0          0.171526             0.216426  
+contain_movement    True
+fs                  250.077549
+fc                  10
+rt                  0.446234
+mt                  0.395943
+movement_dist       341.73819
+peak_vel            981.148145
+time_to_peak_vel    0.171526
+time_after_peak_vel 0.216426
+peak_acc            981.148145
+time_to_peak_acc    0.171526
+time_after_peak_acc 0.216426
 ```
 
 ![pipeline](./img/automated_procedure.jpg)
