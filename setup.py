@@ -7,11 +7,11 @@ long_description = (this_directory / "README.md").read_text()
 
 setup(
     name='tathum',
-    version='0.4.1',
+    version='1.0.0',
     description='TAT-HUM: Trajectory Analysis Toolkit for Human Movement',
     url='https://github.com/xywang01/TAT-HUM',
     download_url='https://github.com/xywang01/TAT-HUM/archive/refs/tags/0.4.tar.gz',
-    author='X. Michael Wang, University of Toronto, Faculty of Kinesiology and Physical Education, AA Lab',
+    author='X. Michael Wang, Centre for Motor Control, University of Toronto, Faculty of Kinesiology and Physical Education',
     author_email='michaelwxy.wang@utoronto.ca',
     license='MIT',
     packages=['tathum', ],
