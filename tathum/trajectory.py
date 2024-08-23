@@ -583,18 +583,19 @@ class Trajectory(TrajectoryBase):
                 axs[0].text(self.time[seg_mid], np.min([self.x_original, self.y_original, self.z_original]),
                             f'{n_missing}', fontsize=12,)
 
-        for principal_dir in self.movement_plane_ax:
-            axs[0].plot(self.time, np.ones((len(self.time), 1)) * self.start_pos[principal_dir],
-                        c='c', linestyle=':', linewidth=3)
-            axs[0].plot(self.time, np.ones((len(self.time), 1)) * self.end_pos[principal_dir],
-                        c='m', linestyle=':', linewidth=3)
+        if self.contain_movement:
+            for principal_dir in self.movement_plane_ax:
+                axs[0].plot(self.time, np.ones((len(self.time), 1)) * self.start_pos[principal_dir],
+                            c='c', linestyle=':', linewidth=3)
+                axs[0].plot(self.time, np.ones((len(self.time), 1)) * self.end_pos[principal_dir],
+                            c='m', linestyle=':', linewidth=3)
 
-        axs[0].plot([self.start_time, self.start_time],
-                    [np.min([self.x, self.y, self.z]),
-                     np.max([self.x, self.y, self.z])], label='start', c='c')
-        axs[0].plot([self.end_time, self.end_time],
-                    [np.min([self.x, self.y, self.z]),
-                     np.max([self.x, self.y, self.z])], label='end', c='m')
+            axs[0].plot([self.start_time, self.start_time],
+                        [np.min([self.x, self.y, self.z]),
+                         np.max([self.x, self.y, self.z])], label='start', c='c')
+            axs[0].plot([self.end_time, self.end_time],
+                        [np.min([self.x, self.y, self.z]),
+                         np.max([self.x, self.y, self.z])], label='end', c='m')
         axs[0].set_xlabel('Time (seconds)')
         axs[0].set_ylabel('Displacement')
         # axs[0].set_title(f'{self.n_missing} missing data')
