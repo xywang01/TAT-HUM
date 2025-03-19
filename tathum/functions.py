@@ -122,16 +122,16 @@ def fill_missing_data(x: np.ndarray,
 
         f_interp = interpolate.interp1d(time[not_missing_ind], x[not_missing_ind], bounds_error=False,
                                         # fill values are for missing values outside the range of x
-                                        fill_value=(np.NaN, np.NaN))
+                                        fill_value=(np.nan, np.nan))
         x = f_interp(time)
 
         f_interp = interpolate.interp1d(time[not_missing_ind], y[not_missing_ind], bounds_error=False,
-                                        fill_value=(np.NaN, np.NaN))
+                                        fill_value=(np.nan, np.nan))
         y = f_interp(time)
 
         if z is not None:
             f_interp = interpolate.interp1d(time[not_missing_ind], z[not_missing_ind], bounds_error=False,
-                                            fill_value=(np.NaN, np.NaN))
+                                            fill_value=(np.nan, np.nan))
             z = f_interp(time)
 
         ind_delete = np.where(np.isnan(x))[0]
