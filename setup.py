@@ -10,7 +10,7 @@ setup(
     version='1.0.3',
     description='TAT-HUM: Trajectory Analysis Toolkit for Human Movement',
     url='https://github.com/xywang01/TAT-HUM',
-    download_url='https://github.com/xywang01/TAT-HUM/archive/refs/tags/1.0.2.tar.gz',
+    download_url='https://github.com/xywang01/TAT-HUM/archive/refs/tags/1.0.3.tar.gz',
     author='X. Michael Wang, Centre for Motor Control, University of Toronto, Faculty of Kinesiology and Physical Education',
     author_email='michaelwxy.wang@utoronto.ca',
     license='MIT',
